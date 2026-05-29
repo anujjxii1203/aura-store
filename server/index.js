@@ -674,7 +674,7 @@ app.use('/api', (req, res) => {
 const frontendDist = path.join(__dirname, '../client/dist');
 app.use(express.static(frontendDist));
 app.use((req, res) => {
-  res.status(200).send("Aura Store Backend is running successfully! Please connect your frontend API calls to /api endpoints.");
+  res.status(404).json({ message: "Not found. Please ensure VITE_API_BASE_URL ends with /api" });
 });
 
 app.use((err, req, res, next) => {
