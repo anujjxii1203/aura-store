@@ -18,6 +18,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomUUID, createHmac } = require('crypto');
 const Razorpay = require('razorpay');
+const Stripe = require('stripe');
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51TY25yPrGUNGOLAIb7SColoHk5nAeA6bsCYdmrQWahJkn74GbQdFEW5r3kzBOd64HdiuLlLA3Cc34v83kFNLklnz00z6AnR8m8');
 const { Resend } = require('resend');
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -520,105 +522,65 @@ app.post('/api/payments/razorpay-order', requireAuth, asyncHandler(async (req, r
   }
 }));
 
+// Updated payments endpoint to handle COD and Stripe method
 app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
   const method = String(req.body.method || '').trim().toLowerCase();
-  
-  if (method === 'card' || method === 'upi') {
-    // Razorpay flow
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, metadata } = req.body;
-    
-    if (process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_SECRET.includes('YOUR_KEY_SECRET')) {
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-         res.status(400).json({ message: 'Payment verification failed. Missing signature parameters.' });
-         return;
-      }
-      const generatedSignature = createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-                                 .update(razorpay_order_id + "|" + razorpay_payment_id)
-                                 .digest('hex');
-                                 
-      if (generatedSignature !== razorpay_signature) {
-        res.status(400).json({ message: 'Payment verification failed. Invalid signature.' });
-        return;
-      }
-    }
-    
-    // Signature valid or in mock mode
-    const paymentId = razorpay_payment_id || `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
-    const reference = razorpay_order_id || `AURA-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
-    
-    await run(
-      `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        paymentId,
-        req.auth.id,
-        amount,
-        method,
-        'paid',
-        reference,
-        JSON.stringify(metadata || {}),
-      ],
-    );
 
+  // Handle Cash on Delivery (COD) payments
+  if (method === 'cod') {
+    // Validate COD payload
+    const normalized = normalizePaymentPayload(req.body);
+    if (normalized.error) {
+      res.status(400).json({ message: normalized.error });
+      return;
+    }
+
+    const paymentId = `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
+    const reference = `AURA-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const status = 'pending';
+
+    await run(
+      `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)`,
+      [paymentId, req.auth.id, amount, method, status, reference, JSON.stringify(normalized.payload || {})]
+    );
+    // Respond with COD payment info
     res.status(201).json({
       payment: {
         id: paymentId,
-        amount: amount,
-        method: method,
-        status: 'paid',
+        amount,
+        method,
+        status,
         reference,
-        metadata: metadata || {},
+        metadata: normalized.payload || {},
       },
     });
-
-    // Send Order Email
-    if (req.auth && req.auth.email) {
-      sendOrderEmail(req.auth.email, reference, amount);
-    }
+    return;
+  } else {
+    // Unsupported payment method
+    res.status(400).json({ message: 'Unsupported payment method. Use COD or Stripe.' });
     return;
   }
-  
-  // existing code for COD flow
-  const normalized = normalizePaymentPayload(req.body);
+}));
 
-  if (normalized.error) {
-    res.status(400).json({ message: normalized.error });
+// Create Stripe PaymentIntent
+app.post('/api/payments/create-intent', requireAuth, asyncHandler(async (req, res) => {
+  const amount = parseAmount(req.body.amount);
+  if (!amount || amount <= 0) {
+    res.status(400).json({ message: 'Invalid payment amount.' });
     return;
   }
 
-  const paymentId = `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
-  const reference = `AURA-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
-  const status = normalized.method === 'cod' ? 'pending' : 'paid';
-
-  await run(
-    `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      paymentId,
-      req.auth.id,
-      normalized.amount,
-      normalized.method,
-      status,
-      reference,
-      JSON.stringify(normalized.metadata),
-    ],
-  );
-
-  // Send Order Email
-  if (req.auth && req.auth.email) {
-    sendOrderEmail(req.auth.email, reference, normalized.amount || req.body.amount);
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount * 100,
+      currency: 'inr',
+      metadata: { userId: req.auth.id },
+    });
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Stripe Intent creation error:', error);
+    res.status(500).json({ message: 'Failed to create payment intent.' });
   }
-
-  res.status(201).json({
-    payment: {
-      id: paymentId,
-      amount: normalized.amount,
-      method: normalized.method,
-      status,
-      reference,
-      metadata: normalized.metadata,
-    },
-  });
 }));
 
 app.post('/api/auth/google', asyncHandler(async (req, res) => {

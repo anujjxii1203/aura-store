@@ -18,12 +18,14 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import { formatPrice } from '../utils/formatters';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import BackButton from '../components/BackButton';
 import PageTitle from '../components/PageTitle';
 import confetti from 'canvas-confetti';
 
 const paymentOptions = [
-  { id: 'upi', label: 'Online Payment', detail: 'Netbanking, Wallet, UPI', icon: Smartphone },
+  { id: 'stripe', label: 'Card Payment', detail: 'Pay with credit/debit card', icon: Smartphone },
   { id: 'cod', label: 'Cash on Delivery', detail: 'Pay when your order arrives', icon: Banknote },
 ];
 
@@ -52,12 +54,15 @@ const Checkout = () => {
     const defaultAddress = savedAddresses.find((address) => address.default) || savedAddresses[0];
     return defaultAddress?.id || null;
   });
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [paymentError, setPaymentError] = useState('');
   const [isPaying, setIsPaying] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const navigate = useNavigate();
   const finalTotal = Math.round(cartTotal * 1.05);
+  const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+  const stripe = useStripe();
+  const elements = useElements();
 
   useEffect(() => {
     if (!user) {
@@ -144,88 +149,50 @@ const Checkout = () => {
 
 
 
-    // Razorpay flow for UPI
-    setPaymentError('');
-    setIsPaying(true);
-
-    try {
-      // 1. Create Razorpay Order
-      const orderResponse = await api.post('/payments/razorpay-order', { amount: finalTotal });
-      const orderData = orderResponse.data;
-
-      // 2. Open Razorpay Checkout Modal
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_SlhSfVT4ynuVbZ',
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'AURA STORE',
-        description: 'Payment for your order',
-        order_id: orderData.id,
-        prefill: {
+  if (paymentMethod === 'stripe') {
+  setIsPaying(true);
+  setPaymentError('');
+  try {
+    // 1. Create Stripe PaymentIntent and get client secret
+    const intentRes = await api.post('/payments/create-intent', { amount: finalTotal });
+    const clientSecret = intentRes.data.clientSecret;
+    // 2. Confirm Card Payment using Stripe Elements
+    const stripe = await stripePromise;
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: elements.getElement(CardElement),
+        billing_details: {
           name: user.username,
           email: user.email,
-          method: 'upi'
         },
-        theme: {
-          color: '#2b1be1ff'
-        },
-        config: {
-          display: {
-            hide: [{ method: 'card' }],
-            preferences: {
-              show_default_blocks: true
-            }
-          }
-        },
-        handler: async function (response) {
-          try {
-            // 3. Verify Payment Signature
-            const verifyPayload = {
-              method: paymentMethod,
-              amount: finalTotal,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              metadata: { items: cart }
-            };
-            const verifyResponse = await api.post('/payments', verifyPayload);
-            saveOrder(verifyResponse.data.payment);
-            setIsOrdered(true);
-            triggerConfetti();
-            setTimeout(() => {
-              clearCart();
-              navigate('/profile');
-            }, 3000);
-          } catch (err) {
-            setPaymentError(err?.response?.data?.message || err.userMessage || 'Payment verification failed.');
-            setIsPaying(false);
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsPaying(false);
-          }
-        }
-      };
-
-      if (!window.Razorpay) {
-        setPaymentError('Razorpay SDK failed to load. Are you offline?');
-        setIsPaying(false);
-        return;
-      }
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (response) {
-        setPaymentError(response.error.description || 'Payment failed.');
-        setIsPaying(false);
-      });
-      rzp.open();
-
-    } catch (err) {
-      setPaymentError(err.userMessage || 'Could not initiate Razorpay payment.');
+      },
+    });
+    if (error) {
+      setPaymentError(error.message || 'Payment failed.');
       setIsPaying(false);
+      return;
     }
-  };
+    // Save order with Stripe payment details
+    const payment = {
+      id: paymentIntent.id,
+      amount: paymentIntent.amount / 100,
+      method: 'stripe',
+      status: paymentIntent.status,
+      reference: paymentIntent.id,
+      metadata: paymentIntent.metadata || {},
+    };
+    saveOrder(payment);
+    setIsOrdered(true);
+    triggerConfetti();
+    setTimeout(() => {
+      clearCart();
+      navigate('/profile');
+    }, 3000);
+  } catch (err) {
+    setPaymentError(err.message || 'Could not process payment.');
+    setIsPaying(false);
+  }
+}  };
 
 
   useEffect(() => {
@@ -266,6 +233,7 @@ const Checkout = () => {
   }
 
   return (
+    <Elements stripe={stripePromise}>
     <div className="container" style={{ padding: '40px 20px' }}>
       {/* Checkout Stepper */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '50px', maxWidth: '600px', margin: '0 auto 50px' }}>
@@ -492,7 +460,8 @@ const Checkout = () => {
           </div>
         </div>
       </div>
-    </div>
+        </div>
+    </Elements>
   );
 };
 

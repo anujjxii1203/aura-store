@@ -60,8 +60,11 @@ const Addresses = () => {
   };
 
   const demoMapUrl = (address) => {
-    const query = `${address.city} ${address.details}`;
-    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=13&output=embed`;
+    const query = `${address.city} ${address.details}`.trim();
+    const encoded = encodeURIComponent(query);
+    const url = `https://maps.google.com/maps?q=${encoded}&z=13&output=embed`;
+    console.log('Map URL:', url);
+    return url;
   };
 
   return (
@@ -180,8 +183,10 @@ const Addresses = () => {
                 scrolling="no" 
                 marginHeight="0" 
                 marginWidth="0" 
-                src={demoMapUrl(activeAddress)}
-                style={{ border: 0 }}
+            src={demoMapUrl(activeAddress)}
+            loading="lazy"
+            sandbox="allow-scripts allow-same-origin"
+            style={{ border: 0 }}
               ></iframe>
               
               <div style={{ position: 'absolute', bottom: '20px', left: '20px', right: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '15px' }}>
