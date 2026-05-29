@@ -54,15 +54,15 @@ const Checkout = () => {
     const defaultAddress = savedAddresses.find((address) => address.default) || savedAddresses[0];
     return defaultAddress?.id || null;
   });
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [paymentError, setPaymentError] = useState('');
   const [isPaying, setIsPaying] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const navigate = useNavigate();
   const finalTotal = Math.round(cartTotal * 1.05);
   const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-  const stripe = useStripe();
   const elements = useElements();
+
 
   useEffect(() => {
     if (!user) {
@@ -365,15 +365,9 @@ const Checkout = () => {
 
           <form onSubmit={handlePlaceOrder}>
 
-            {paymentMethod === 'upi' && (
+            {paymentMethod === 'stripe' && (
               <div style={{ background: 'var(--ss-light-grey)', border: '1.5px solid var(--border-color)', borderRadius: '12px', padding: '22px', marginBottom: '18px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                  <Smartphone size={40} style={{ color: '#008080' }} />
-                  <div>
-                    <h3 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '5px', color: 'var(--text-primary)' }}>Secure UPI Payment</h3>
-                    <p style={{ fontSize: '13px' }}>You will be redirected to Razorpay to complete your payment using any UPI app.</p>
-                  </div>
-                </div>
+                <CardElement options={{ style: { base: { color: '#32325d', fontFamily: 'Arial, sans-serif', fontSize: '16px', '::placeholder': { color: '#a0aec0' } }, invalid: { color: '#fa755a' } } }} />
               </div>
             )}
 
