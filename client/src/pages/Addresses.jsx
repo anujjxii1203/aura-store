@@ -61,7 +61,7 @@ const Addresses = () => {
 
   const demoMapUrl = (address) => {
     const query = `${address.city} ${address.details}`;
-    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=13&output=embed`;
   };
 
   return (
