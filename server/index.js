@@ -17,9 +17,9 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomUUID, createHmac } = require('crypto');
-const Razorpay = require('razorpay');
+// const Razorpay = require('razorpay'); // Razorpay removed in favor of Stripe
 const Stripe = require('stripe');
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51TY25yPrGUNGOLAIb7SColoHk5nAeA6bsCYdmrQWahJkn74GbQdFEW5r3kzBOd64HdiuLlLA3Cc34v83kFNLklnz00z6AnR8m8');
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const { Resend } = require('resend');
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
