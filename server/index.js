@@ -17,7 +17,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomUUID, createHmac } = require('crypto');
-// const Razorpay = require('razorpay'); // Razorpay removed in favor of Stripe
+// Razorpay removed (Stripe only)
 const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const { Resend } = require('resend');
@@ -54,11 +54,6 @@ console.log("All modules required successfully.");
 
 const { all, get, initDatabase, run } = require('./database');
 console.log("Database module loaded.");
-
-const razorpayInstance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'dummy_id',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret',
-});
 
 const app = express();
 const PORT = Number.parseInt(process.env.PORT, 10) || 5055;
@@ -493,34 +488,7 @@ app.patch('/api/admin/orders/:id', asyncHandler(async (req, res) => {
   res.json({ message: 'Order status updated' });
 }));
 
-app.post('/api/payments/razorpay-order', requireAuth, asyncHandler(async (req, res) => {
-  const amount = parseAmount(req.body.amount);
-  
-  if (!amount || amount <= 0) {
-    res.status(400).json({ message: 'Payment amount must be greater than zero.' });
-    return;
-  }
-
-  if (!process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID.includes('YOUR_KEY_ID')) {
-    // Return a mock order if no keys configured to prevent crash for testing UI
-    res.json({ id: `order_mock_${Date.now()}`, amount: amount * 100, currency: 'INR' });
-    return;
-  }
-
-  const options = {
-    amount: amount * 100, // Razorpay works in paise
-    currency: "INR",
-    receipt: `rcpt_${Date.now()}`
-  };
-
-  try {
-    const order = await razorpayInstance.orders.create(options);
-    res.json(order);
-  } catch (error) {
-    console.error("Razorpay order creation error:", error);
-    res.status(500).json({ message: 'Failed to create Razorpay order.' });
-  }
-}));
+// Razorpay order endpoint removed (Stripe only)
 
 // Updated payments endpoint to handle COD and Stripe method
 app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
