@@ -54,16 +54,21 @@ export const CartProvider = ({ children }) => {
 
   const toggleCart = (state) => setIsCartOpen(prev => typeof state === 'boolean' ? state : !prev);
 
+  const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
+  const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+
   const applyCoupon = async (code) => {
     try {
       const response = await api.post('/coupons/validate', { code });
       const coupon = response.data;
-      
-      const value = coupon.discount_type === 'percentage' 
-        ? coupon.discount_value / 100 
-        : coupon.discount_value / subtotal;
-        
-      setDiscount(value);
+
+      if (coupon.discount_type === 'percentage') {
+        setDiscount(coupon.discount_value / 100);
+      } else {
+        // flat amount – convert to a ratio of subtotal
+        setDiscount(subtotal > 0 ? coupon.discount_value / subtotal : 0);
+      }
+
       setAppliedCoupon(code.toUpperCase());
       return true;
     } catch (err) {
@@ -73,8 +78,6 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
-  const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const discountAmount = subtotal * discount;
   const cartTotal = subtotal - discountAmount;
 
