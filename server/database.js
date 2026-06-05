@@ -301,31 +301,34 @@ async function createCouponsTable() {
     )
   `);
 
-  // Seed default coupons if table is empty
-  const existing = await get('SELECT COUNT(*) AS cnt FROM coupons');
-  const count = existing ? (existing.cnt || existing.count || 0) : 0;
-  if (Number(count) === 0) {
-    const defaultCoupons = [
-      { code: 'AURA10',    discount_type: 'percentage', discount_value: 10 },
-      { code: 'AURA20',    discount_type: 'percentage', discount_value: 20 },
-      { code: 'AURA30',    discount_type: 'percentage', discount_value: 30 },
-      { code: 'WELCOME50', discount_type: 'percentage', discount_value: 50 },
-      { code: 'FIRST25',   discount_type: 'percentage', discount_value: 25 },
-      { code: 'SAVE15',    discount_type: 'percentage', discount_value: 15 },
-      { code: 'VIP40',     discount_type: 'percentage', discount_value: 40 },
-      { code: 'SUMMER5',   discount_type: 'percentage', discount_value: 5 },
-      { code: 'LUCKY77',   discount_type: 'percentage', discount_value: 77 },
-      { code: 'FREE100',   discount_type: 'percentage', discount_value: 100 },
-    ];
+  // Seed default coupons — upsert to add any missing ones without duplicating
+  const defaultCoupons = [
+    { code: 'AURA10',    discount_type: 'percentage', discount_value: 10 },
+    { code: 'AURA20',    discount_type: 'percentage', discount_value: 20 },
+    { code: 'AURA30',    discount_type: 'percentage', discount_value: 30 },
+    { code: 'WELCOME50', discount_type: 'percentage', discount_value: 50 },
+    { code: 'FIRST25',   discount_type: 'percentage', discount_value: 25 },
+    { code: 'SAVE15',    discount_type: 'percentage', discount_value: 15 },
+    { code: 'VIP40',     discount_type: 'percentage', discount_value: 40 },
+    { code: 'SUMMER5',   discount_type: 'percentage', discount_value: 5 },
+    { code: 'LUCKY77',   discount_type: 'percentage', discount_value: 77 },
+    { code: 'FREE100',   discount_type: 'percentage', discount_value: 100 },
+  ];
 
-    for (const c of defaultCoupons) {
+  for (const c of defaultCoupons) {
+    if (dbType === 'postgres') {
       await run(
-        'INSERT INTO coupons (code, discount_type, discount_value) VALUES (?, ?, ?)',
+        'INSERT INTO coupons (code, discount_type, discount_value) VALUES (?, ?, ?) ON CONFLICT (code) DO NOTHING',
+        [c.code, c.discount_type, c.discount_value],
+      );
+    } else {
+      await run(
+        'INSERT OR IGNORE INTO coupons (code, discount_type, discount_value) VALUES (?, ?, ?)',
         [c.code, c.discount_type, c.discount_value],
       );
     }
-    console.log(`Seeded ${defaultCoupons.length} default coupons.`);
   }
+  console.log('Default coupons synced.');
 }
 
 async function createReviewsTable() {
