@@ -314,6 +314,8 @@ async function createCouponsTable() {
       { code: 'SAVE15',    discount_type: 'percentage', discount_value: 15 },
       { code: 'VIP40',     discount_type: 'percentage', discount_value: 40 },
       { code: 'SUMMER5',   discount_type: 'percentage', discount_value: 5 },
+      { code: 'LUCKY77',   discount_type: 'percentage', discount_value: 77 },
+      { code: 'FREE100',   discount_type: 'percentage', discount_value: 100 },
     ];
 
     for (const c of defaultCoupons) {

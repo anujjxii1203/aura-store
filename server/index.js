@@ -566,7 +566,7 @@ app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
     const status = 'pending';
 
     await run(
-      `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)`,
+      `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [paymentId, req.auth.id, amount, method, status, reference, JSON.stringify(metadata || {})]
     );
     // Respond with COD payment info
