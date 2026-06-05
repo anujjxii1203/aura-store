@@ -13,7 +13,10 @@ const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState(initialForm);
   const [error, setError] = useState('');
+  const [otpError, setOtpError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState('credentials'); // 'credentials' or 'otp'
+  const [otp, setOtp] = useState('');
   const { setSession } = useUser();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -23,26 +26,28 @@ const Login = () => {
   };
 
   const validateForm = () => {
-    if (!isLogin && !formData.username.trim()) {
-      return 'Full name is required to create an account.';
+    if (step === 'credentials') {
+      if (!isLogin && !formData.username.trim()) {
+        return 'Please enter a username.';
+      }
+      if (!formData.email.trim()) {
+        return 'Please enter your email address.';
+      }
+      if (!formData.email.includes('@')) {
+        return 'Please enter a valid email address.';
+      }
+      if (!formData.password) {
+        return 'Please enter your password.';
+      }
+      return '';
     }
-
-    if (!formData.email.trim()) {
-      return 'Please enter your email address.';
+    // OTP step validation
+    if (step === 'otp') {
+      if (!otp.trim()) {
+        return 'Please enter the OTP sent to your email.';
+      }
+      return '';
     }
-
-    if (!formData.email.includes('@')) {
-      return 'Please enter a valid email address.';
-    }
-
-    if (!formData.password) {
-      return 'Please enter your password.';
-    }
-
-    if (!isLogin && formData.password.length < 6) {
-      return 'Password must be at least 6 characters long.';
-    }
-
     return '';
   };
 
@@ -51,25 +56,35 @@ const Login = () => {
     const validationError = validateForm();
 
     if (validationError) {
-      setError(validationError);
+      if (step === 'otp') setOtpError(validationError); else setError(validationError);
       return;
     }
 
     setError('');
+    setOtpError('');
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? '/login' : '/register';
-      const payload = isLogin
-        ? { email: formData.email, password: formData.password }
-        : { name: formData.username, email: formData.email, password: formData.password };
-      const response = await api.post(endpoint, payload);
-
-      setSession({ user: response.data.user, token: response.data.token });
-      showToast(isLogin ? 'Welcome back!' : 'Account created successfully!', 'success');
-      navigate('/profile');
+      if (step === 'credentials') {
+        if (!isLogin) {
+          const response = await api.post('/register', formData);
+          showToast('Account created successfully!', 'success');
+          setIsLogin(true);
+          setFormData(initialForm);
+        } else {
+          await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
+          setStep('otp');
+          showToast('OTP sent to your email.', 'success');
+        }
+      } else if (step === 'otp') {
+        const response = await api.post('/auth/verify-otp', { email: formData.email, otp });
+        setSession({ user: response.data.user, token: response.data.token });
+        showToast('Welcome back!', 'success');
+        navigate('/profile');
+      }
     } catch (err) {
-      setError(err.userMessage || 'Unable to complete this request.');
+      if (step === 'otp') setOtpError(err.userMessage || 'Unable to verify OTP.');
+      else setError(err.userMessage || 'Unable to complete this request.');
     } finally {
       setLoading(false);
     }
@@ -78,6 +93,8 @@ const Login = () => {
   const toggleMode = () => {
     setIsLogin((current) => !current);
     setError('');
+    setOtpError('');
+    setStep('credentials');
     setFormData(initialForm);
   };
 
@@ -97,55 +114,79 @@ const Login = () => {
             <span>{error}</span>
           </div>
         )}
+        {otpError && (
+          <div className="error-banner" role="alert">
+            <AlertCircle size={17} />
+            <span>{otpError}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {!isLogin && (
+          {step === 'credentials' && (
+            <>
+              {!isLogin && (
+                <label className="field-group">
+                  <span>Username</span>
+                  <div className="input-with-icon">
+                    <User size={18} />
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(event) => updateField('username', event.target.value)}
+                      placeholder="Username"
+                      autoComplete="username"
+                    />
+                  </div>
+                </label>
+              )}
+              <label className="field-group">
+                <span>Email Address</span>
+                <div className="input-with-icon">
+                  <Mail size={18} />
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(event) => updateField('email', event.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+              </label>
+
+              <label className="field-group">
+                <span>Password</span>
+                <div className="input-with-icon">
+                  <Lock size={18} />
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(event) => updateField('password', event.target.value)}
+                    placeholder="Enter password"
+                    autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  />
+                </div>
+              </label>
+            </>
+          )}
+          {step === 'otp' && (
             <label className="field-group">
-              <span>Full Name</span>
+              <span>One‑Time Password</span>
               <div className="input-with-icon">
-                <User size={18} />
+                <Lock size={18} />
                 <input
                   type="text"
-                  value={formData.username}
-                  onChange={(event) => updateField('username', event.target.value)}
-                  placeholder="Enter your name"
-                  autoComplete="name"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter OTP"
+                  autoComplete="one-time-code"
                 />
               </div>
             </label>
           )}
 
-          <label className="field-group">
-            <span>Email Address</span>
-            <div className="input-with-icon">
-              <Mail size={18} />
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(event) => updateField('email', event.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-            </div>
-          </label>
-
-          <label className="field-group">
-            <span>Password</span>
-            <div className="input-with-icon">
-              <Lock size={18} />
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(event) => updateField('password', event.target.value)}
-                placeholder="Enter password"
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-              />
-            </div>
-          </label>
-
           <button type="submit" className="btn-red auth-submit" disabled={loading}>
             {loading ? <LoaderCircle size={18} className="spin-icon" /> : <ArrowRight size={18} />}
-            {isLogin ? 'Sign In' : 'Create Account'}
+            {step === 'credentials' ? (isLogin ? 'Sign In' : 'Create Account') : 'Verify OTP'}
           </button>
         </form>
 

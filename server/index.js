@@ -22,7 +22,7 @@ const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const { Resend } = require('resend');
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-
+const { generateOtp, sendOtpEmail, storeOtp, verifyOtp } = require('./otpHelper');
 const sendOrderEmail = async (email, orderRef, amount) => {
   if (!resend) {
     console.log('Resend API key missing. Email not sent.');
@@ -407,7 +407,64 @@ app.post('/api/login', asyncHandler(async (req, res) => {
     user: publicUser(user),
   });
 }));
+// Request OTP after validating credentials
+app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const password = String(req.body.password || '');
 
+  if (!email || !email.includes('@')) {
+    res.status(400).json({ message: 'Please enter a valid email address.' });
+    return;
+  }
+
+  if (!password) {
+    res.status(400).json({ message: 'Please enter your password.' });
+    return;
+  }
+
+  const user = await get('SELECT id, username, email, password FROM users WHERE email = ?', [email]);
+
+  if (!user || !user.password) {
+    res.status(401).json({ message: 'No account found for this email.' });
+    return;
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.password);
+  if (!passwordMatches) {
+    res.status(401).json({ message: 'Incorrect password.' });
+    return;
+  }
+
+  const otp = generateOtp();
+  storeOtp(email, otp);
+  await sendOtpEmail(resend, email, otp);
+  res.json({ message: 'OTP sent to your email.' });
+}));
+
+// Verify OTP and issue JWT
+app.post('/api/auth/verify-otp', asyncHandler(async (req, res) => {
+  const { email: rawEmail, otp } = req.body;
+  const email = normalizeEmail(rawEmail);
+
+  if (!email || !email.includes('@') || !otp) {
+    res.status(400).json({ message: 'Email and OTP are required.' });
+    return;
+  }
+
+  if (!verifyOtp(email, otp)) {
+    res.status(401).json({ message: 'Invalid or expired OTP.' });
+    return;
+  }
+
+  const user = await get('SELECT id, username, email FROM users WHERE email = ?', [email]);
+  if (!user) {
+    res.status(404).json({ message: 'User not found.' });
+    return;
+  }
+
+  const token = signToken(user);
+  res.json({ message: 'Login successful.', token, user: publicUser(user) });
+}));
 app.get('/api/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await get('SELECT id, username, email FROM users WHERE id = ?', [req.auth.id]);
 
