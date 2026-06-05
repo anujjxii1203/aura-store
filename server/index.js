@@ -503,13 +503,14 @@ app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
       return;
     }
 
+    const { amount, metadata } = normalized;
     const paymentId = `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
     const reference = `AURA-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
     const status = 'pending';
 
     await run(
       `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)`,
-      [paymentId, req.auth.id, amount, method, status, reference, JSON.stringify(normalized.payload || {})]
+      [paymentId, req.auth.id, amount, method, status, reference, JSON.stringify(metadata || {})]
     );
     // Respond with COD payment info
     res.status(201).json({
@@ -519,7 +520,7 @@ app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
         method,
         status,
         reference,
-        metadata: normalized.payload || {},
+        metadata: metadata || {},
       },
     });
     return;

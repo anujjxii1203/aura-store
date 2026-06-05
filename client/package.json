@@ -10,6 +10,8 @@
     "preview": "vite preview --configLoader native"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.7.0",
     "axios": "^1.16.0",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.38.0",

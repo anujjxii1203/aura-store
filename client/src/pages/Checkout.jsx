@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCart } from '../context/CartContext';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +24,8 @@ import BackButton from '../components/BackButton';
 import PageTitle from '../components/PageTitle';
 import confetti from 'canvas-confetti';
 
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
 const paymentOptions = [
   { id: 'stripe', label: 'Card Payment', detail: 'Pay with credit/debit card', icon: Smartphone },
   { id: 'cod', label: 'Cash on Delivery', detail: 'Pay when your order arrives', icon: Banknote },
@@ -40,84 +42,69 @@ const getSavedAddresses = (email) => {
   }
 };
 
-
-const Checkout = () => {
+/* ------------------------------------------------------------------ */
+/*  Inner checkout form – rendered INSIDE <Elements> so Stripe        */
+/*  hooks (useStripe, useElements) have access to the provider.       */
+/* ------------------------------------------------------------------ */
+const CheckoutForm = () => {
   const { cart, subtotal, discountAmount, cartTotal, clearCart, applyCoupon, appliedCoupon } = useCart();
   const { user } = useUser();
   const { showToast } = useToast();
+  const stripe = useStripe();
+  const elements = useElements();
+  const navigate = useNavigate();
+
   const [couponInput, setCouponInput] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [isOrdered, setIsOrdered] = useState(false);
   const [addresses] = useState(() => getSavedAddresses(user?.email));
   const [selectedAddressId, setSelectedAddressId] = useState(() => {
     const savedAddresses = getSavedAddresses(user?.email);
-    const defaultAddress = savedAddresses.find((address) => address.default) || savedAddresses[0];
+    const defaultAddress = savedAddresses.find((a) => a.default) || savedAddresses[0];
     return defaultAddress?.id || null;
   });
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [paymentError, setPaymentError] = useState('');
   const [isPaying, setIsPaying] = useState(false);
   const [countdown, setCountdown] = useState(3);
-  const navigate = useNavigate();
   const finalTotal = Math.round(cartTotal * 1.05);
-  const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-  const elements = useElements();
-
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (cart.length === 0 && !isOrdered) {
-      navigate('/cart');
-    }
+    if (!user) { navigate('/login'); return; }
+    if (cart.length === 0 && !isOrdered) navigate('/cart');
   }, [cart.length, user, navigate]);
 
+  /* ---------- coupon ---------- */
   const handleApplyCoupon = async () => {
     if (!couponInput.trim()) return;
     setIsApplying(true);
     try {
       const success = await applyCoupon(couponInput);
-      if (success) {
-        showToast('Coupon applied successfully!', 'success');
-        setCouponInput('');
-      } else {
-        showToast('Invalid coupon code.', 'error');
-      }
-    } catch (err) {
-      showToast('Error applying coupon.', 'error');
-    } finally {
-      setIsApplying(false);
-    }
+      showToast(success ? 'Coupon applied successfully!' : 'Invalid coupon code.', success ? 'success' : 'error');
+      if (success) setCouponInput('');
+    } catch { showToast('Error applying coupon.', 'error'); }
+    finally { setIsApplying(false); }
   };
 
-
-
-
+  /* ---------- save order to localStorage ---------- */
   const saveOrder = (payment) => {
     const newOrder = {
       id: 'ORD-' + Math.floor(Math.random() * 1000000),
       date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
       total: finalTotal,
-      status: payment.status === 'paid' ? 'Paid' : 'Placed',
+      status: payment.status === 'paid' || payment.status === 'succeeded' ? 'Paid' : 'Placed',
       payment,
       items: cart,
     };
-
-    const existingOrders = JSON.parse(localStorage.getItem(`orders_${user.email}`) || '[]');
-    localStorage.setItem(`orders_${user.email}`, JSON.stringify([newOrder, ...existingOrders]));
+    const existing = JSON.parse(localStorage.getItem(`orders_${user.email}`) || '[]');
+    localStorage.setItem(`orders_${user.email}`, JSON.stringify([newOrder, ...existing]));
   };
 
   const triggerConfetti = () => {
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#e11b23', '#222222', '#ffffff', '#008080']
-    });
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#e11b23', '#222', '#fff', '#008080'] });
   };
 
+  /* ---------- place order ---------- */
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
@@ -127,84 +114,80 @@ const Checkout = () => {
       return;
     }
 
+    /* ---- COD ---- */
     if (paymentMethod === 'cod') {
       setIsPaying(true);
+      setPaymentError('');
       try {
         const payload = { amount: finalTotal, method: 'cod', metadata: { items: cart } };
         const response = await api.post('/payments', payload);
         saveOrder(response.data.payment);
         setIsOrdered(true);
         triggerConfetti();
-        setTimeout(() => {
-          clearCart();
-          navigate('/profile');
-        }, 3000);
+        setTimeout(() => { clearCart(); navigate('/profile'); }, 3000);
       } catch (err) {
         setPaymentError(err.userMessage || 'Payment could not be processed.');
-      } finally {
+      } finally { setIsPaying(false); }
+      return;
+    }
+
+    /* ---- Stripe card payment ---- */
+    if (paymentMethod === 'stripe') {
+      if (!stripe || !elements) {
+        setPaymentError('Stripe is still loading. Please wait a moment and try again.');
+        return;
+      }
+
+      setIsPaying(true);
+      setPaymentError('');
+      try {
+        // 1. Create PaymentIntent on our server
+        const intentRes = await api.post('/payments/create-intent', { amount: finalTotal });
+        const clientSecret = intentRes.data.clientSecret;
+
+        // 2. Confirm card payment with Stripe.js
+        const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: elements.getElement(CardElement),
+            billing_details: { name: user.username, email: user.email },
+          },
+        });
+
+        if (error) {
+          setPaymentError(error.message || 'Payment failed.');
+          setIsPaying(false);
+          return;
+        }
+
+        // 3. Save order
+        saveOrder({
+          id: paymentIntent.id,
+          amount: paymentIntent.amount / 100,
+          method: 'stripe',
+          status: paymentIntent.status,
+          reference: paymentIntent.id,
+          metadata: paymentIntent.metadata || {},
+        });
+        setIsOrdered(true);
+        triggerConfetti();
+        setTimeout(() => { clearCart(); navigate('/profile'); }, 3000);
+      } catch (err) {
+        setPaymentError(err.message || 'Could not process payment.');
         setIsPaying(false);
       }
-      return;
     }
+  };
 
-
-
-  if (paymentMethod === 'stripe') {
-  setIsPaying(true);
-  setPaymentError('');
-  try {
-    // 1. Create Stripe PaymentIntent and get client secret
-    const intentRes = await api.post('/payments/create-intent', { amount: finalTotal });
-    const clientSecret = intentRes.data.clientSecret;
-    // 2. Confirm Card Payment using Stripe Elements
-    const stripe = await stripePromise;
-    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: {
-        card: elements.getElement(CardElement),
-        billing_details: {
-          name: user.username,
-          email: user.email,
-        },
-      },
-    });
-    if (error) {
-      setPaymentError(error.message || 'Payment failed.');
-      setIsPaying(false);
-      return;
-    }
-    // Save order with Stripe payment details
-    const payment = {
-      id: paymentIntent.id,
-      amount: paymentIntent.amount / 100,
-      method: 'stripe',
-      status: paymentIntent.status,
-      reference: paymentIntent.id,
-      metadata: paymentIntent.metadata || {},
-    };
-    saveOrder(payment);
-    setIsOrdered(true);
-    triggerConfetti();
-    setTimeout(() => {
-      clearCart();
-      navigate('/profile');
-    }, 3000);
-  } catch (err) {
-    setPaymentError(err.message || 'Could not process payment.');
-    setIsPaying(false);
-  }
-}  };
-
-
+  /* ---------- countdown after order ---------- */
   useEffect(() => {
     let timer;
     if (isOrdered && countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
+      timer = setInterval(() => setCountdown((p) => p - 1), 1000);
     }
     return () => clearInterval(timer);
   }, [isOrdered, countdown]);
 
+  /* ==================== SUCCESS SCREEN ==================== */
   if (isOrdered) {
     return (
       <div className="container" style={{ padding: '100px 20px', textAlign: 'center' }}>
@@ -213,29 +196,18 @@ const Checkout = () => {
           <h2 style={{ fontSize: '28px', fontWeight: '950', marginBottom: '10px' }}>Order Placed Successfully!</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>Payment confirmed. Thank you for shopping with AURA STORE.</p>
           <p style={{ color: '#999', fontSize: '13px', marginTop: '15px', fontWeight: '800' }}>REDIRECTING TO YOUR ORDERS IN {countdown} SECONDS...</p>
-          
-          {/* Progress Bar */}
           <div style={{ width: '200px', height: '4px', background: '#eee', borderRadius: '10px', margin: '20px auto 0', overflow: 'hidden', position: 'relative' }}>
-            <div style={{ 
-              position: 'absolute', 
-              top: 0, 
-              left: 0, 
-              height: '100%', 
-              width: `${(countdown / 3) * 100}%`, 
-              background: '#008080', 
-              transition: 'width 1s linear',
-              borderRadius: '10px'
-            }}></div>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${(countdown / 3) * 100}%`, background: '#008080', transition: 'width 1s linear', borderRadius: '10px' }} />
           </div>
         </div>
       </div>
     );
   }
 
+  /* ==================== CHECKOUT FORM ==================== */
   return (
-    <Elements stripe={stripePromise}>
     <div className="container" style={{ padding: '40px 20px' }}>
-      {/* Checkout Stepper */}
+      {/* Stepper */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '50px', maxWidth: '600px', margin: '0 auto 50px' }}>
         {[
           { label: 'ADDRESS', step: 1 },
@@ -244,26 +216,18 @@ const Checkout = () => {
         ].map((item, index, array) => (
           <div key={item.step} style={{ display: 'flex', alignItems: 'center', flex: index === array.length - 1 ? 'none' : 1 }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-              <div style={{ 
-                width: '32px', 
-                height: '32px', 
-                borderRadius: '50%', 
-                background: isOrdered || (item.step === 1) || (item.step === 2 && paymentMethod) ? '#008080' : '#eee', 
-                color: 'white', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontSize: '14px', 
-                fontWeight: '900',
-                border: '4px solid white',
-                boxShadow: '0 0 0 1px #eee'
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: isOrdered || item.step === 1 || (item.step === 2 && paymentMethod) ? '#008080' : '#eee',
+                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '14px', fontWeight: '900', border: '4px solid white', boxShadow: '0 0 0 1px #eee',
               }}>
                 {isOrdered && item.step < 3 ? '✓' : item.step}
               </div>
-              <span style={{ fontSize: '10px', fontWeight: '900', marginTop: '8px', color: isOrdered || (item.step === 1) || (item.step === 2 && paymentMethod) ? '#008080' : '#999' }}>{item.label}</span>
+              <span style={{ fontSize: '10px', fontWeight: '900', marginTop: '8px', color: isOrdered || item.step === 1 || (item.step === 2 && paymentMethod) ? '#008080' : '#999' }}>{item.label}</span>
             </div>
             {index !== array.length - 1 && (
-              <div style={{ flex: 1, height: '2px', background: isOrdered || (item.step === 1 && paymentMethod) ? '#008080' : '#eee', margin: '0 15px', marginTop: '-18px' }}></div>
+              <div style={{ flex: 1, height: '2px', background: isOrdered || (item.step === 1 && paymentMethod) ? '#008080' : '#eee', margin: '0 15px', marginTop: '-18px' }} />
             )}
           </div>
         ))}
@@ -271,6 +235,7 @@ const Checkout = () => {
 
       <PageTitle title="Checkout" />
       <BackButton label="Back to Cart" />
+
       <div className="checkout-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '50px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '30px' }}>SELECT DELIVERY ADDRESS</h1>
@@ -291,13 +256,9 @@ const Checkout = () => {
                   style={{
                     padding: '20px',
                     border: selectedAddressId === addr.id ? '2px solid #008080' : '1.5px solid var(--border-color)',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
+                    borderRadius: '12px', cursor: 'pointer',
                     background: selectedAddressId === addr.id ? 'var(--ss-light-grey)' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '15px',
-                    transition: '0.2s',
+                    display: 'flex', alignItems: 'flex-start', gap: '15px', transition: '0.2s',
                   }}
                 >
                   <input type="radio" checked={selectedAddressId === addr.id} readOnly style={{ marginTop: '5px' }} />
@@ -332,25 +293,16 @@ const Checkout = () => {
             {paymentOptions.map((option) => {
               const Icon = option.icon;
               const isActive = paymentMethod === option.id;
-
               return (
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => {
-                    setPaymentMethod(option.id);
-                    setPaymentError('');
-                  }}
+                  onClick={() => { setPaymentMethod(option.id); setPaymentError(''); }}
                   style={{
                     background: isActive ? 'var(--ss-light-grey)' : 'transparent',
                     border: isActive ? '2px solid #008080' : '1.5px solid var(--border-color)',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    gap: '12px',
-                    padding: '16px',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)'
+                    borderRadius: '12px', cursor: 'pointer', display: 'flex', gap: '12px',
+                    padding: '16px', textAlign: 'left', color: 'var(--text-primary)',
                   }}
                 >
                   <Icon size={22} color={isActive ? '#008080' : '#555'} />
@@ -364,7 +316,6 @@ const Checkout = () => {
           </div>
 
           <form onSubmit={handlePlaceOrder}>
-
             {paymentMethod === 'stripe' && (
               <div style={{ background: 'var(--ss-light-grey)', border: '1.5px solid var(--border-color)', borderRadius: '12px', padding: '22px', marginBottom: '18px' }}>
                 <CardElement options={{ style: { base: { color: '#32325d', fontFamily: 'Arial, sans-serif', fontSize: '16px', '::placeholder': { color: '#a0aec0' } }, invalid: { color: '#fa755a' } } }} />
@@ -386,6 +337,7 @@ const Checkout = () => {
           </form>
         </div>
 
+        {/* ORDER SUMMARY SIDEBAR */}
         <div>
           <div style={{ background: 'var(--ss-light-grey)', padding: '30px', borderRadius: '12px', position: 'sticky', top: '100px', border: '1.5px solid var(--border-color)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '20px' }}>ORDER SUMMARY</h2>
@@ -445,7 +397,7 @@ const Checkout = () => {
               type="button"
               onClick={handlePlaceOrder}
               className="btn-red"
-              disabled={addresses.length === 0 || isPaying}
+              disabled={addresses.length === 0 || isPaying || (paymentMethod === 'stripe' && !stripe)}
               style={{ width: '100%', padding: '18px', fontSize: '15px', borderRadius: '6px', opacity: addresses.length === 0 || isPaying ? 0.5 : 1, cursor: addresses.length === 0 || isPaying ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               {isPaying && <LoaderCircle size={18} className="spin-icon" />}
@@ -454,7 +406,17 @@ const Checkout = () => {
           </div>
         </div>
       </div>
-        </div>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Wrapper – provides the Stripe <Elements> context                  */
+/* ------------------------------------------------------------------ */
+const Checkout = () => {
+  return (
+    <Elements stripe={stripePromise}>
+      <CheckoutForm />
     </Elements>
   );
 };
