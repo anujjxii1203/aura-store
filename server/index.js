@@ -17,20 +17,30 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomUUID, createHmac } = require('crypto');
-// Razorpay removed (Stripe only)
-const Stripe = require('stripe');
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-const { Resend } = require('resend');
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Razorpay integration restored
+const Razorpay = require('razorpay');
+const razorpayInstance = process.env.RAZORPAY_KEY_ID && !process.env.RAZORPAY_KEY_ID.includes('YOUR_KEY_ID') ? new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+}) : null;
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS
+  }
+});
+
 const { generateOtp, sendOtpEmail, storeOtp, verifyOtp } = require('./otpHelper');
 const sendOrderEmail = async (email, orderRef, amount) => {
-  if (!resend) {
-    console.log('Resend API key missing. Email not sent.');
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
+    console.log('Gmail credentials missing. Order email not sent.');
     return;
   }
   try {
-    await resend.emails.send({
-      from: 'Aura Store <onboarding@resend.dev>',
+    await transporter.sendMail({
+      from: `"Aura Store" <${process.env.GMAIL_USER}>`,
       to: email,
       subject: `Order Confirmed! #${orderRef}`,
       html: `
@@ -45,9 +55,9 @@ const sendOrderEmail = async (email, orderRef, amount) => {
         </div>
       `
     });
-    console.log(`Email sent successfully to ${email}`);
+    console.log(`Order email sent successfully to ${email}`);
   } catch (error) {
-    console.error('Email sending failed:', error);
+    console.error('Order email sending failed:', error);
   }
 };
 console.log("All modules required successfully.");
@@ -437,7 +447,7 @@ app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {
 
   const otp = generateOtp();
   storeOtp(email, otp);
-  await sendOtpEmail(resend, email, otp);
+  await sendOtpEmail(email, otp);
   res.json({ message: 'OTP sent to your email.' });
 }));
 
@@ -545,15 +555,82 @@ app.patch('/api/admin/orders/:id', asyncHandler(async (req, res) => {
   res.json({ message: 'Order status updated' });
 }));
 
-// Razorpay order endpoint removed (Stripe only)
+// --- RAZORPAY ROUTES ---
+app.post('/api/payments/razorpay-order', requireAuth, asyncHandler(async (req, res) => {
+  const amount = parseAmount(req.body.amount);
+  
+  if (!amount || amount <= 0) {
+    res.status(400).json({ message: 'Payment amount must be greater than zero.' });
+    return;
+  }
 
-// Updated payments endpoint to handle COD and Stripe method
+  if (!process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID.includes('YOUR_KEY_ID')) {
+    // Return a mock order if no keys configured
+    res.json({ id: `order_mock_${Date.now()}`, amount: amount * 100, currency: 'INR' });
+    return;
+  }
+
+  const options = {
+    amount: amount * 100,
+    currency: "INR",
+    receipt: `rcpt_${Date.now()}`
+  };
+
+  try {
+    const order = await razorpayInstance.orders.create(options);
+    res.json(order);
+  } catch (error) {
+    console.error("Razorpay order creation error:", error);
+    res.status(500).json({ message: 'Failed to create Razorpay order.' });
+  }
+}));
+
 app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
   const method = String(req.body.method || '').trim().toLowerCase();
 
+  // Handle Card or UPI via Razorpay
+  if (method === 'card' || method === 'upi') {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, metadata } = req.body;
+    
+    if (process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_SECRET.includes('YOUR_KEY_SECRET')) {
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+         res.status(400).json({ message: 'Payment verification failed. Missing signature parameters.' });
+         return;
+      }
+      const generatedSignature = createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                                 .update(razorpay_order_id + "|" + razorpay_payment_id)
+                                 .digest('hex');
+                                 
+      if (generatedSignature !== razorpay_signature) {
+        res.status(400).json({ message: 'Payment verification failed. Invalid signature.' });
+        return;
+      }
+    }
+    
+    const paymentId = razorpay_payment_id || `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
+    const reference = razorpay_order_id || `AURA-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    
+    await run(
+      `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [paymentId, req.auth.id, amount, method, 'paid', reference, JSON.stringify(metadata || {})]
+    );
+
+    res.status(201).json({
+      payment: {
+        id: paymentId,
+        amount: amount,
+        method: method,
+        status: 'paid',
+        reference,
+        metadata: metadata || {},
+      },
+    });
+    return;
+  }
+
   // Handle Cash on Delivery (COD) payments
   if (method === 'cod') {
-    // Validate COD payload
     const normalized = normalizePaymentPayload(req.body);
     if (normalized.error) {
       res.status(400).json({ message: normalized.error });
@@ -569,7 +646,6 @@ app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
       `INSERT INTO payments (id, user_id, amount, method, status, reference, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [paymentId, req.auth.id, amount, method, status, reference, JSON.stringify(metadata || {})]
     );
-    // Respond with COD payment info
     res.status(201).json({
       payment: {
         id: paymentId,
@@ -581,32 +657,9 @@ app.post('/api/payments', requireAuth, asyncHandler(async (req, res) => {
       },
     });
     return;
-  } else {
-    // Unsupported payment method
-    res.status(400).json({ message: 'Unsupported payment method. Use COD or Stripe.' });
-    return;
   }
-}));
-
-// Create Stripe PaymentIntent
-app.post('/api/payments/create-intent', requireAuth, asyncHandler(async (req, res) => {
-  const amount = parseAmount(req.body.amount);
-  if (!amount || amount <= 0) {
-    res.status(400).json({ message: 'Invalid payment amount.' });
-    return;
-  }
-
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount * 100,
-      currency: 'inr',
-      metadata: { userId: req.auth.id },
-    });
-    res.json({ clientSecret: paymentIntent.client_secret });
-  } catch (error) {
-    console.error('Stripe Intent creation error:', error);
-    res.status(500).json({ message: 'Failed to create payment intent.' });
-  }
+  
+  res.status(400).json({ message: 'Unsupported payment method. Use COD, UPI, or Card.' });
 }));
 
 app.post('/api/auth/google', asyncHandler(async (req, res) => {

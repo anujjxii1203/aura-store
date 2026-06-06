@@ -10,15 +10,26 @@ function generateOtp() {
   return String(otp);
 }
 
-/** Send OTP email using Resend (if configured) */
-async function sendOtpEmail(resend, toEmail, otp) {
-  if (!resend) {
-    console.warn('Resend not configured – OTP email not sent');
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS
+  }
+});
+
+/** Send OTP email using Nodemailer */
+async function sendOtpEmail(toEmail, otp) {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
+    console.warn('Gmail credentials not configured – OTP email not sent');
+    console.log(`✅ OTP for ${toEmail}: ${otp}`);
     return;
   }
   try {
-    await resend.emails.send({
-      from: 'Aura Store <onboarding@resend.dev>',
+    await transporter.sendMail({
+      from: `"Aura Store" <${process.env.GMAIL_USER}>`,
       to: toEmail,
       subject: 'Your login OTP for Aura Store',
       html: `
@@ -30,6 +41,7 @@ async function sendOtpEmail(resend, toEmail, otp) {
         </div>
       `,
     });
+    console.log(`✅ OTP for ${toEmail}: ${otp}`);
     console.log(`OTP email sent to ${toEmail}`);
   } catch (err) {
     console.error('Failed to send OTP email:', err);

@@ -78,6 +78,11 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  const removeCoupon = () => {
+    setDiscount(0);
+    setAppliedCoupon('');
+  };
+
   const discountAmount = subtotal * discount;
   const cartTotal = subtotal - discountAmount;
 
@@ -93,6 +98,7 @@ export const CartProvider = ({ children }) => {
       discount,
       appliedCoupon,
       applyCoupon,
+      removeCoupon,
       cartTotal, 
       clearCart,
       isCartOpen,
