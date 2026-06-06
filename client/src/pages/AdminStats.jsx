@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
-import { Database, Users, Package, CreditCard, RefreshCw, Lock, Plus, Trash2 } from 'lucide-react';
+import { Database, Users, Package, CreditCard, RefreshCw, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '../utils/formatters';
 import { useUser } from '../context/UserContext';
@@ -15,17 +15,7 @@ const AdminStats = () => {
   const [error, setError] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // New Product Form State
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newProduct, setNewProduct] = useState({
-    name: '',
-    price: '',
-    image: '',
-    description: '',
-    category: 'T-Shirts',
-    gender: 'Men'
-  });
-  const [addLoading, setAddLoading] = useState(false);
+
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -49,21 +39,7 @@ const AdminStats = () => {
     }
   };
 
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
-    setAddLoading(true);
-    try {
-      await api.post('/products', newProduct);
-      setShowAddForm(false);
-      setNewProduct({ name: '', price: '', image: '', description: '', category: 'T-Shirts', gender: 'Men' });
-      fetchStats();
-      alert('Product added successfully to database!');
-    } catch (err) {
-      alert('Failed to add product.');
-    } finally {
-      setAddLoading(false);
-    }
-  };
+
 
   if (!isAuthorized) {
     return (
@@ -134,9 +110,7 @@ const AdminStats = () => {
             <button onClick={handleCreateCoupon} style={{ padding: '10px 20px', borderRadius: '8px', background: '#222', color: 'white', border: 'none', fontWeight: '900', cursor: 'pointer' }}>
               CREATE COUPON
             </button>
-            <button onClick={() => setShowAddForm(true)} style={{ padding: '10px 20px', borderRadius: '8px', background: '#008080', color: 'white', border: 'none', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <Plus size={18} /> ADD NEW PRODUCT
-            </button>
+
             <button onClick={fetchStats} style={{ padding: '10px 20px', borderRadius: '8px', background: '#eee', border: 'none', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <RefreshCw size={18} /> REFRESH
             </button>
@@ -170,6 +144,7 @@ const AdminStats = () => {
                       </span>
                     </td>
                     <td style={{ padding: '10px' }}>{formatPrice(p.price)}</td>
+
                   </tr>
                 ))}</tbody>
               </table>
@@ -207,36 +182,7 @@ const AdminStats = () => {
         </div>
       </div>
       
-      {showAddForm && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'white', padding: '30px', borderRadius: '15px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ fontWeight: '950', marginBottom: '20px' }}>ADD NEW PRODUCT</h2>
-            <form onSubmit={handleAddProduct}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '11px', fontWeight: '900' }}>PRODUCT NAME</label>
-                  <input type="text" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} required />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '900' }}>PRICE (₹)</label>
-                  <input type="number" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} required />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '900' }}>INITIAL STOCK</label>
-                  <input type="number" value={newProduct.stock || 10} onChange={e => setNewProduct({...newProduct, stock: parseInt(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} required />
-                </div>
-                {/* ... other fields keep same ... */}
-              </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
-                <button type="submit" disabled={addLoading} style={{ flex: 1, padding: '15px', background: '#008080', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '900', cursor: 'pointer' }}>
-                  {addLoading ? 'SAVING...' : 'SAVE PRODUCT'}
-                </button>
-                <button type="button" onClick={() => setShowAddForm(false)} style={{ flex: 1, padding: '15px', background: '#eee', color: '#111', border: 'none', borderRadius: '8px', fontWeight: '900', cursor: 'pointer' }}>CANCEL</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

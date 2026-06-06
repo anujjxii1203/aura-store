@@ -58,10 +58,10 @@ const Footer = () => {
           <div className="footer-col">
             <h4 style={{ fontSize: '13px', fontWeight: '950', marginBottom: '25px', letterSpacing: '1px' }}>SHOP</h4>
             <ul className="footer-links" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <li><Link to="/?gender=Men" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>MEN'S COLLECTION</Link></li>
-              <li><Link to="/?gender=Women" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>WOMEN'S COLLECTION</Link></li>
-              <li><Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>NEW ARRIVALS</Link></li>
-              <li><Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>BEST SELLERS</Link></li>
+              <li><Link to="/?gender=Men" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>MEN'S COLLECTION</Link></li>
+              <li><Link to="/?gender=Women" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>WOMEN'S COLLECTION</Link></li>
+              <li><Link to="/?sort=newest" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>NEW ARRIVALS</Link></li>
+              <li><Link to="/?sort=price-high" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>BEST SELLERS</Link></li>
             </ul>
           </div>
 
@@ -69,10 +69,10 @@ const Footer = () => {
           <div className="footer-col">
             <h4 style={{ fontSize: '13px', fontWeight: '950', marginBottom: '25px', letterSpacing: '1px' }}>SUPPORT</h4>
             <ul className="footer-links" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <li><Link to="/profile" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>TRACK ORDER</Link></li>
-              <li><Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>RETURNS & EXCHANGES</Link></li>
-              <li><Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>SHIPPING INFO</Link></li>
-              <li><Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>FAQ</Link></li>
+              <li><Link to="/track-order" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>TRACK ORDER</Link></li>
+              <li><Link to="/returns" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>RETURNS & EXCHANGES</Link></li>
+              <li><Link to="/shipping" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>SHIPPING INFO</Link></li>
+              <li><Link to="/qa" onClick={() => window.scrollTo(0,0)} style={{ color: '#888', textDecoration: 'none', fontSize: '13px', fontWeight: '700', transition: '0.2s' }}>FAQ</Link></li>
             </ul>
           </div>
 
@@ -97,8 +97,8 @@ const Footer = () => {
         <div style={{ borderTop: '1px solid #222', paddingTop: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ color: '#444', fontSize: '11px', fontWeight: '800' }}>&copy; 2026 AURA STORE. ALL RIGHTS RESERVED.</p>
           <div style={{ display: 'flex', gap: '20px' }}>
-            <span style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>PRIVACY</span>
-            <span style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>TERMS</span>
+            <Link to="/privacy" style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>PRIVACY</Link>
+            <Link to="/terms" style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>TERMS</Link>
           </div>
         </div>
       </div>

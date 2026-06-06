@@ -16,8 +16,11 @@ import ProductDetails from './pages/ProductDetails';
 import Preloader from './components/Preloader';
 import Footer from './components/Footer';
 import TrackOrder from './pages/TrackOrder';
-import Returns from './pages/Returns';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import Shipping from './pages/Shipping';
+import QA from './pages/QA';
+import Returns from './pages/Returns';
 import { ToastProvider } from './context/ToastContext';
 import ScrollToTop from './components/ScrollToTop';
 import NotFound from './components/NotFound';
@@ -66,8 +69,11 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/product/:id" element={<ProductDetails />} />
                   <Route path="/track-order" element={<TrackOrder />} />
-                  <Route path="/returns" element={<Returns />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/terms" element={<Terms />} />
                   <Route path="/shipping" element={<Shipping />} />
+                  <Route path="/qa" element={<QA />} />
+                  <Route path="/returns" element={<Returns />} />
                   <Route path="/admin-data" element={<AdminStats />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

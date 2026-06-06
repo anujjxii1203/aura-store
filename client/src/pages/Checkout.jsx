@@ -160,22 +160,14 @@ const Checkout = () => {
         currency: orderData.currency,
         name: 'AURA STORE',
         description: 'Payment for your order',
+        image: 'https://ui-avatars.com/api/?name=Aura+Store&background=2b1be1&color=fff&size=256',
         order_id: orderData.id,
         prefill: {
           name: user.username,
           email: user.email,
-          method: 'upi'
         },
         theme: {
           color: '#2b1be1ff'
-        },
-        config: {
-          display: {
-            hide: [{ method: 'card' }],
-            preferences: {
-              show_default_blocks: true
-            }
-          }
         },
         handler: async function (response) {
           try {

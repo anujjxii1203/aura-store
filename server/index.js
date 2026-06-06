@@ -324,6 +324,21 @@ app.get('/api/products/:id', asyncHandler(async (req, res) => {
   const reviews = await all('SELECT id, username, rating, comment, created_at FROM reviews WHERE product_id = ? ORDER BY created_at DESC', [productId]);
   res.json({ ...product, reviews });
 }));
+app.delete('/api/products/:id', asyncHandler(async (req, res) => {
+  const productId = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    res.status(400).json({ message: 'Product id must be a positive number.' });
+    return;
+  }
+
+  const result = await run('DELETE FROM products WHERE id = ?', [productId]);
+  if (result.changes === 0) {
+    res.status(404).json({ message: 'Product not found.' });
+    return;
+  }
+  res.json({ message: 'Product deleted successfully.' });
+}));
 
 app.post('/api/reviews', requireAuth, asyncHandler(async (req, res) => {
   const { product_id, rating, comment } = req.body;
@@ -416,6 +431,60 @@ app.post('/api/login', asyncHandler(async (req, res) => {
     token: signToken(user),
     user: publicUser(user),
   });
+}));
+
+app.post('/api/users/change-password-init', requireAuth, asyncHandler(async (req, res) => {
+  const { currentPassword } = req.body;
+  const email = req.auth.email;
+
+  if (!currentPassword) {
+    res.status(400).json({ message: 'Current password is required.' });
+    return;
+  }
+
+  const user = await get('SELECT password FROM users WHERE email = ?', [email]);
+  if (!user || !user.password) {
+    res.status(401).json({ message: 'No account found for this email.' });
+    return;
+  }
+
+  const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+  if (!passwordMatches) {
+    res.status(401).json({ message: 'Incorrect current password.' });
+    return;
+  }
+
+  const otp = generateOtp();
+  storeOtp(email, otp);
+  await sendOtpEmail(email, otp);
+
+  res.json({ message: 'OTP sent to your email.' });
+}));
+
+app.post('/api/users/change-password-verify', requireAuth, asyncHandler(async (req, res) => {
+  const { newPassword, otp } = req.body;
+  const email = req.auth.email;
+
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    return;
+  }
+
+  if (!otp) {
+    res.status(400).json({ message: 'OTP is required.' });
+    return;
+  }
+
+  const isValidOtp = verifyOtp(email, otp);
+  if (!isValidOtp) {
+    res.status(400).json({ message: 'Invalid or expired OTP.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await run('UPDATE users SET password = ? WHERE email = ?', [passwordHash, email]);
+
+  res.json({ message: 'Password updated successfully.' });
 }));
 // Request OTP after validating credentials
 app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {

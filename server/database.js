@@ -220,42 +220,59 @@ async function createUsersTable() {
       email TEXT NOT NULL UNIQUE,
       password TEXT,
       google_id TEXT UNIQUE,
+      role TEXT DEFAULT 'user',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  
+  try {
+    if (dbType === 'postgres') {
+      await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'");
+    }
+  } catch (err) {}
+
   await run('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
 }
 
-async function resetProductsTable() {
-  await run('DROP TABLE IF EXISTS products');
+async function createProductsTable() {
+  // Use INTEGER PRIMARY KEY for SQLite auto-increment compatibility
+  const idCol = dbType === 'postgres' ? 'id SERIAL PRIMARY KEY' : 'id INTEGER PRIMARY KEY AUTOINCREMENT';
+
   await run(`
-    CREATE TABLE products (
-      id SERIAL PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS products (
+      ${idCol},
       name TEXT NOT NULL,
       price INTEGER NOT NULL CHECK (price >= 0),
       image TEXT NOT NULL,
       description TEXT NOT NULL,
       category TEXT NOT NULL,
       gender TEXT NOT NULL CHECK (gender IN ('Men', 'Women')),
+      size TEXT,
+      color TEXT,
       stock INTEGER DEFAULT 10,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  for (const product of PRODUCT_SEED) {
-    await run(
-      `INSERT INTO products (id, name, price, image, description, category, gender)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        product.id,
-        product.name,
-        product.price,
-        product.image,
-        product.description,
-        product.category,
-        product.gender,
-      ],
-    );
+  // Seed only if the table is empty (preserves admin-added products on restart)
+  const existing = await get('SELECT COUNT(*) as cnt FROM products');
+  if (!existing || existing.cnt === 0) {
+    for (const product of PRODUCT_SEED) {
+      await run(
+        `INSERT INTO products (id, name, price, image, description, category, gender)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          product.id,
+          product.name,
+          product.price,
+          product.image,
+          product.description,
+          product.category,
+          product.gender,
+        ],
+      );
+    }
+    console.log('Products table seeded with default data.');
   }
 }
 
@@ -339,10 +356,33 @@ async function createReviewsTable() {
       username TEXT NOT NULL,
       rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
       comment TEXT NOT NULL,
+      image TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try {
+    if (dbType === 'postgres') {
+      await run('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS image TEXT');
+    } else {
+      await run('ALTER TABLE reviews ADD COLUMN image TEXT');
+    }
+  } catch (err) {}
+
   await run('CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON reviews(product_id)');
+}
+
+async function createWishlistTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS wishlist (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, product_id)
+    )
+  `);
+  await run('CREATE INDEX IF NOT EXISTS idx_wishlist_user_id ON wishlist(user_id)');
 }
 
 let initPromise;
@@ -355,10 +395,11 @@ async function initializeDatabase() {
       try {
         await client.query('BEGIN');
         await createUsersTable();
-        await resetProductsTable();
+        await createProductsTable();
         await createPaymentsTable();
         await createCouponsTable();
         await createReviewsTable();
+        await createWishlistTable();
         await client.query('COMMIT');
         console.log("PostgreSQL database initialized successfully.");
       } catch (err) {
@@ -380,10 +421,11 @@ async function initializeDatabase() {
     db.exec('BEGIN TRANSACTION');
     try {
       await createUsersTable();
-      await resetProductsTable();
+      await createProductsTable();
       await createPaymentsTable();
       await createCouponsTable();
       await createReviewsTable();
+      await createWishlistTable();
       db.exec('COMMIT');
       console.log("Local SQLite database initialized successfully.");
     } catch (err) {
