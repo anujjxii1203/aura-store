@@ -92,6 +92,19 @@ const Login = () => {
     }
   };
 
+  const handleResendOtp = async () => {
+    try {
+      setLoading(true);
+      setOtpError('');
+      await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
+      showToast('OTP resent to your email.', 'success');
+    } catch (err) {
+      setOtpError(err.userMessage || 'Unable to resend OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleMode = () => {
     setIsLogin((current) => !current);
     setError('');
@@ -174,8 +187,9 @@ const Login = () => {
             </>
           )}
           {step === 'otp' && (
-            <label className="field-group">
-              <span>One‑Time Password</span>
+            <>
+              <label className="field-group">
+                <span>One‑Time Password</span>
               <div className="input-with-icon">
                 <Lock size={18} />
                 <input
@@ -187,6 +201,17 @@ const Login = () => {
                 />
               </div>
             </label>
+            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+              <button 
+                type="button" 
+                onClick={handleResendOtp} 
+                style={{ background: 'none', border: 'none', color: '#e11b23', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                disabled={loading}
+              >
+                Resend OTP
+              </button>
+            </div>
+            </>
           )}
 
           <button type="submit" className="btn-red auth-submit" disabled={loading}>
