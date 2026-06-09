@@ -32,6 +32,30 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const sendWelcomeEmail = async (toEmail, username) => {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) return;
+  try {
+    await transporter.sendMail({
+      from: `"Aura Store" <${process.env.GMAIL_USER}>`,
+      to: toEmail,
+      subject: `Welcome to Aura Store, ${username}! 🎉`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #e11b23;">AURA STORE</h2>
+          <h3>Welcome aboard, ${username}!</h3>
+          <p>We are thrilled to have you here. Your account has been successfully created.</p>
+          <p>Get ready to explore our premium streetwear collections and exclusive offers.</p>
+          <br/>
+          <p>Happy Shopping,<br/><strong>The Aura Store Team</strong></p>
+        </div>
+      `,
+    });
+    console.log(`Welcome email sent to ${toEmail}`);
+  } catch (err) {
+    console.error('Failed to send welcome email:', err);
+  }
+};
+
 const { generateOtp, sendOtpEmail, storeOtp, verifyOtp } = require('./otpHelper');
 const sendOrderEmail = async (email, orderRef, amount) => {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
@@ -117,6 +141,7 @@ function publicUser(user) {
     id: user.id,
     username: user.username,
     email: user.email,
+    points: user.points || 0,
   };
 }
 
@@ -252,6 +277,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', port: PORT });
 });
 
+app.get('/api/debug', asyncHandler(async (req, res) => {
+  try {
+    const result = await all("SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_name = 'products'");
+    res.json(result);
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+}));
+
 app.get('/api/products', asyncHandler(async (req, res) => {
   const gender = parseGender(req.query.gender);
 
@@ -302,15 +336,15 @@ app.post('/api/products', asyncHandler(async (req, res) => {
 }));
 
 app.get('/api/products/:id', asyncHandler(async (req, res) => {
-  const productId = Number.parseInt(req.params.id, 10);
+  const productId = req.params.id;
 
-  if (!Number.isInteger(productId) || productId <= 0) {
-    res.status(400).json({ message: 'Product id must be a positive number.' });
+  if (!productId || productId === 'undefined' || productId === 'null') {
+    res.status(400).json({ message: 'Valid product id is required.' });
     return;
   }
 
   const product = await get(
-    `SELECT id, name, price, image, description, category, gender
+    `SELECT id, name, price, image, description, category, gender, stock
      FROM products
      WHERE id = ?`,
     [productId],
@@ -325,10 +359,10 @@ app.get('/api/products/:id', asyncHandler(async (req, res) => {
   res.json({ ...product, reviews });
 }));
 app.delete('/api/products/:id', asyncHandler(async (req, res) => {
-  const productId = Number.parseInt(req.params.id, 10);
+  const productId = req.params.id;
 
-  if (!Number.isInteger(productId) || productId <= 0) {
-    res.status(400).json({ message: 'Product id must be a positive number.' });
+  if (!productId || productId === 'undefined' || productId === 'null') {
+    res.status(400).json({ message: 'Valid product id is required.' });
     return;
   }
 
@@ -390,6 +424,8 @@ app.post('/api/register', asyncHandler(async (req, res) => {
     [username, email, passwordHash],
   );
   const user = { id: result.lastID, username, email };
+
+  sendWelcomeEmail(email, username);
 
   res.status(201).json({
     message: 'Account created successfully.',
@@ -535,7 +571,7 @@ app.post('/api/auth/verify-otp', asyncHandler(async (req, res) => {
     return;
   }
 
-  const user = await get('SELECT id, username, email FROM users WHERE email = ?', [email]);
+  const user = await get('SELECT id, username, email, points FROM users WHERE email = ?', [email]);
   if (!user) {
     res.status(404).json({ message: 'User not found.' });
     return;
@@ -545,7 +581,7 @@ app.post('/api/auth/verify-otp', asyncHandler(async (req, res) => {
   res.json({ message: 'Login successful.', token, user: publicUser(user) });
 }));
 app.get('/api/me', requireAuth, asyncHandler(async (req, res) => {
-  const user = await get('SELECT id, username, email FROM users WHERE id = ?', [req.auth.id]);
+  const user = await get('SELECT id, username, email, points FROM users WHERE id = ?', [req.auth.id]);
 
   if (!user) {
     res.status(404).json({ message: 'The signed-in user no longer exists.' });
@@ -623,6 +659,54 @@ app.patch('/api/admin/orders/:id', asyncHandler(async (req, res) => {
   await run('UPDATE payments SET status_track = ? WHERE id = ?', [status_track, req.params.id]);
   res.json({ message: 'Order status updated' });
 }));
+
+app.delete('/api/admin/users/:id', asyncHandler(async (req, res) => {
+  await run('DELETE FROM users WHERE id = ?', [req.params.id]);
+  res.json({ message: 'User deleted successfully' });
+}));
+
+app.delete('/api/admin/coupons/:id', asyncHandler(async (req, res) => {
+  await run('DELETE FROM coupons WHERE id = ?', [req.params.id]);
+  res.json({ message: 'Coupon deleted successfully' });
+}));
+
+app.patch('/api/admin/products/:id', asyncHandler(async (req, res) => {
+  const { stock, price } = req.body;
+  if (stock !== undefined && price !== undefined) {
+    await run('UPDATE products SET stock = ?, price = ? WHERE id = ?', [stock, price, req.params.id]);
+  } else if (stock !== undefined) {
+    await run('UPDATE products SET stock = ? WHERE id = ?', [stock, req.params.id]);
+  } else if (price !== undefined) {
+    await run('UPDATE products SET price = ? WHERE id = ?', [price, req.params.id]);
+  }
+  res.json({ message: 'Product updated successfully' });
+}));
+
+app.post('/api/admin/products', asyncHandler(async (req, res) => {
+  const { name, price, image, description, category, gender, stock } = req.body;
+  
+  if (!name || !price || !image || !description || !category || !gender) {
+    res.status(400).json({ message: 'All required fields must be provided.' });
+    return;
+  }
+
+  const stockVal = stock !== undefined ? parseInt(stock) : 10;
+
+  await run(
+    'INSERT INTO products (name, price, image, description, category, gender, stock) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [name, parseInt(price), image, description, category, gender, stockVal]
+  );
+  
+  res.status(201).json({ message: 'Product created successfully' });
+}));
+
+app.delete('/api/admin/products/:id', asyncHandler(async (req, res) => {
+  await run('DELETE FROM products WHERE id = ?', [req.params.id]);
+  res.json({ message: 'Product deleted successfully' });
+}));
+
+
+
 
 // --- RAZORPAY ROUTES ---
 app.post('/api/payments/razorpay-order', requireAuth, asyncHandler(async (req, res) => {
@@ -752,7 +836,7 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
   }
 
   let user = await get(
-    'SELECT id, username, email, google_id FROM users WHERE google_id = ? OR email = ?',
+    'SELECT id, username, email, google_id, points FROM users WHERE google_id = ? OR email = ?',
     [googleId, email],
   );
 
@@ -765,7 +849,7 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
       'INSERT INTO users (username, email, google_id) VALUES (?, ?, ?) RETURNING id',
       [username, email, googleId],
     );
-    user = { id: result.lastID, username, email };
+    user = { id: result.lastID, username, email, points: 500 };
   }
 
   res.json({
@@ -784,7 +868,7 @@ app.use('/api', (req, res) => {
 const frontendDist = path.join(__dirname, '../client/dist');
 app.use(express.static(frontendDist));
 app.use((req, res) => {
-  res.status(404).json({ message: "Not found. Please ensure VITE_API_BASE_URL ends with /api" });
+  res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
 app.use((err, req, res, next) => {

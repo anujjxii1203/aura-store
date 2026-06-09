@@ -27,6 +27,7 @@ async function sendOtpEmail(toEmail, otp) {
     console.log(`✅ OTP for ${toEmail}: ${otp}`);
     return;
   }
+  console.log(`✅ OTP for ${toEmail}: ${otp}`);
   try {
     await transporter.sendMail({
       from: `"Aura Store" <${process.env.GMAIL_USER}>`,
@@ -41,7 +42,6 @@ async function sendOtpEmail(toEmail, otp) {
         </div>
       `,
     });
-    console.log(`✅ OTP for ${toEmail}: ${otp}`);
     console.log(`OTP email sent to ${toEmail}`);
   } catch (err) {
     console.error('Failed to send OTP email:', err);
@@ -63,7 +63,7 @@ function verifyOtp(email, otp) {
     otpStore.delete(email);
     return false;
   }
-  const isValid = stored === otp;
+  const isValid = stored === String(otp).trim();
   if (isValid) otpStore.delete(email);
   return isValid;
 }

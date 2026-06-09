@@ -179,15 +179,12 @@ const Login = () => {
               <div className="input-with-icon">
                 <Lock size={18} />
                 <input
-                  type={showOtp ? "text" : "password"}
+                  type="text"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   placeholder="Enter OTP"
                   autoComplete="one-time-code"
                 />
-                <button type="button" onClick={() => setShowOtp(!showOtp)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}>
-                  {showOtp ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
               </div>
             </label>
           )}

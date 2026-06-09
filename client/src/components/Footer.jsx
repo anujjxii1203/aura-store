@@ -96,7 +96,7 @@ const Footer = () => {
 
         <div style={{ borderTop: '1px solid #222', paddingTop: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ color: '#444', fontSize: '11px', fontWeight: '800' }}>&copy; 2026 AURA STORE. ALL RIGHTS RESERVED.</p>
-          <div style={{ display: 'flex', gap: '20px' }}>
+          <div style={{ display: 'flex', gap: '20px', paddingRight: '60px', flexWrap: 'wrap' }}>
             <Link to="/privacy" style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>PRIVACY</Link>
             <Link to="/terms" style={{ color: '#444', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>TERMS</Link>
           </div>

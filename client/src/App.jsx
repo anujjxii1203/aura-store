@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { UserProvider } from './context/UserContext';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
+import Men from './pages/Men';
+import Footwear from './pages/Footwear';
+import Drops from './pages/Drops';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Profile from './pages/Profile';
@@ -28,6 +31,21 @@ import CartDrawer from './components/CartDrawer';
 import FloatingActions from './components/FloatingActions';
 import AdminStats from './pages/AdminStats';
 
+const MainLayout = () => (
+  <>
+    <FloatingActions />
+    <CartDrawer />
+    <Navbar />
+    <Outlet />
+    <Footer />
+  </>
+);
+
+const AdminLayout = () => (
+  <div style={{ background: '#f8f9fa', minHeight: '100vh' }}>
+    <Outlet />
+  </div>
+);
 
 function App() {
   const [initialLoad, setInitialLoad] = useState(true);
@@ -55,29 +73,33 @@ function App() {
           <WishlistProvider>
             <CartProvider>
               <div className="App">
-                <FloatingActions />
-                <CartDrawer />
-                <Navbar />
                 <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/wishlist" element={<Wishlist />} />
-                  <Route path="/addresses" element={<Addresses />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/product/:id" element={<ProductDetails />} />
-                  <Route path="/track-order" element={<TrackOrder />} />
-                  <Route path="/privacy" element={<Privacy />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/shipping" element={<Shipping />} />
-                  <Route path="/qa" element={<QA />} />
-                  <Route path="/returns" element={<Returns />} />
-                  <Route path="/admin-data" element={<AdminStats />} />
-                  <Route path="*" element={<NotFound />} />
+                  <Route element={<AdminLayout />}>
+                    <Route path="/admin-data" element={<AdminStats />} />
+                  </Route>
+
+                  <Route element={<MainLayout />}>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/men" element={<Men />} />
+                    <Route path="/footwear" element={<Footwear />} />
+                    <Route path="/drops" element={<Drops />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/wishlist" element={<Wishlist />} />
+                    <Route path="/addresses" element={<Addresses />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/product/:id" element={<ProductDetails />} />
+                    <Route path="/track-order" element={<TrackOrder />} />
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/shipping" element={<Shipping />} />
+                    <Route path="/qa" element={<QA />} />
+                    <Route path="/returns" element={<Returns />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
                 </Routes>
-                <Footer />
               </div>
             </CartProvider>
           </WishlistProvider>

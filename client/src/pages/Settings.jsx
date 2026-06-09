@@ -77,8 +77,6 @@ const Settings = () => {
     }
   };
 
-  if (!user) return null;
-
   return (
     <div className="container" style={{ padding: '40px 20px' }}>
       <PageTitle title="Account Settings" />
@@ -181,7 +179,7 @@ const Settings = () => {
 
               {otpSent && (
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', marginBottom: '8px', color: 'var(--yaperz-green)' }}>ENTER OTP (Sent to {user.email})</label>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', marginBottom: '8px', color: 'var(--yaperz-green)' }}>ENTER OTP (Sent to {user?.email || ''})</label>
                   <input 
                     type="text" 
                     value={otp}

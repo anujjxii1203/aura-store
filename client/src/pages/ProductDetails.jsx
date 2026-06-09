@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ShoppingBag, Heart, Check, ShieldCheck, Truck, Plus, Minus, Share2, Ruler, X, Star, MessageSquare } from 'lucide-react';
+import { ShoppingBag, Heart, Check, ShieldCheck, Truck, Plus, Minus, Share2, Ruler, X, Star, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import BackButton from '../components/BackButton';
 import Preloader from '../components/Preloader';
 import PageTitle from '../components/PageTitle';
@@ -11,6 +11,20 @@ import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { useUser } from '../context/UserContext';
 import { FALLBACK_IMAGE, formatPrice, getOriginalPrice } from '../utils/formatters';
+
+const AccordionItem = ({ title, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="accordion-item">
+      <button className="accordion-header" onClick={() => setIsOpen(!isOpen)}>
+        {title}
+        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      </button>
+      {isOpen && <div className="accordion-content">{children}</div>}
+    </div>
+  );
+};
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -26,8 +40,6 @@ const ProductDetails = () => {
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
   const [error, setError] = useState(null);
-  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
-  const [stockWarning] = useState(() => Math.floor(Math.random() * 5) + 1);
 
   // Review State
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
@@ -45,7 +57,7 @@ const ProductDetails = () => {
       localStorage.setItem('recentlyViewed', JSON.stringify(updated));
 
       // Fetch Related
-      const relatedRes = await api.get(`/products?category=${data.category}`);
+      const relatedRes = await api.get(`/products?category=${data.category}&gender=${data.gender}`);
       setRelatedProducts(relatedRes.data.filter(p => p.id !== data.id).slice(0, 4));
     } catch (err) {
       setError(err.userMessage || 'Failed to load product details.');
@@ -87,10 +99,13 @@ const ProductDetails = () => {
   if (error) return <div className="container" style={{ padding: '100px', textAlign: 'center', color: '#e11b23', fontWeight: 'bold' }}>{error}</div>;
   if (!product) return <Preloader />;
 
+  const isWishlisted = isInWishlist(product.id);
+
   return (
-    <div className="container" style={{ padding: '40px 20px' }}>
+    <div className="pdp-container">
       <PageTitle title={product.name} />
-      <div className="breadcrumbs">
+      
+      <div className="breadcrumbs" style={{ marginBottom: '20px' }}>
         <Link to="/">HOME</Link>
         <span>/</span>
         <Link to={`/?gender=${product.gender || 'Men'}`}>{product.gender ? product.gender.toUpperCase() : 'UNISEX'}</Link>
@@ -100,114 +115,147 @@ const ProductDetails = () => {
         <span>{product.name.toUpperCase()}</span>
       </div>
 
-      <BackButton label="Back to Shop" />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }} className="pdp-grid">
-        <div style={{ borderRadius: '16px', position: 'relative', overflow: 'hidden' }}>
-          <img src={product.image || FALLBACK_IMAGE} alt={product.name} style={{ width: '100%', height: 'auto', borderRadius: '12px', objectFit: 'cover', aspectRatio: '4/5' }} />
-          <button onClick={() => toggleWishlist(product)} className="product-card-icon-button" style={{ position: 'absolute', top: '20px', right: '20px', width: '45px', height: '45px', zIndex: 10 }}>
-            <Heart size={20} fill={isInWishlist(product.id) ? '#e11b23' : 'none'} color={isInWishlist(product.id) ? '#e11b23' : '#333'} />
-          </button>
+      <div className="pdp-grid-ss">
+        {/* Left Column: Image */}
+        <div className="pdp-left">
+          <div style={{ borderRadius: '8px', overflow: 'hidden', background: '#f5f5f5' }}>
+            <img 
+              src={product.image || FALLBACK_IMAGE} 
+              alt={product.name} 
+              style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'cover' }} 
+            />
+          </div>
         </div>
 
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '800', background: 'var(--ss-light-grey)', padding: '4px 10px', borderRadius: '4px' }}>{product.gender?.toUpperCase()}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ffc107' }}>
-              <Star size={14} fill="#ffc107" />
-              <span style={{ fontSize: '13px', fontWeight: '900', color: '#111' }}>4.8</span>
-              <span style={{ fontSize: '11px', color: '#666' }}>({product.reviews?.length || 0} reviews)</span>
+        {/* Right Column: Details */}
+        <div className="pdp-right">
+          <div style={{ borderBottom: '1px solid #eee', paddingBottom: '25px', marginBottom: '25px' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: '900', marginBottom: '8px', color: '#111' }}>{product.name}</h1>
+            <p style={{ color: '#666', fontSize: '15px', fontWeight: '600', marginBottom: '15px' }}>{product.category}</p>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <span style={{ fontSize: '26px', fontWeight: '900', color: '#111' }}>{formatPrice(product.price)}</span>
+              <span style={{ fontSize: '18px', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>{formatPrice(getOriginalPrice(product.price))}</span>
+              <span style={{ fontSize: '16px', fontWeight: '800', color: '#008080' }}>30% OFF</span>
+            </div>
+            <div className="pdp-tax-info">Inclusive of all taxes</div>
+            <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', background: 'rgba(225, 27, 35, 0.1)', color: '#e11b23', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '800' }}>
+              <Star size={14} fill="#e11b23" style={{ marginRight: '6px' }} />
+              EARN {Math.floor(product.price * 0.1)} AURA POINTS WITH THIS PURCHASE
             </div>
           </div>
 
-          <h1 style={{ fontSize: '36px', fontWeight: '900', marginBottom: '15px' }}>{product.name.toUpperCase()}</h1>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-            <p style={{ fontSize: '28px', fontWeight: '900', color: '#e11b23' }}>{formatPrice(product.price)}</p>
-            <p style={{ fontSize: '18px', fontWeight: '600', color: '#999', textDecoration: 'line-through' }}>{formatPrice(getOriginalPrice(product.price))}</p>
+          {/* Size Selection */}
+          <div style={{ marginBottom: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', fontWeight: '800' }}>Please select a size.</span>
+              <button style={{ background: 'transparent', border: 'none', color: '#008080', fontWeight: '800', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Ruler size={14} /> Size Guide
+              </button>
+            </div>
+            <div className="size-selector-grid">
+              {['S', 'M', 'L', 'XL', 'XXL'].map(size => (
+                <div 
+                  key={size} 
+                  className={`size-btn ${selectedSize === size ? 'selected' : ''}`}
+                  onClick={() => setSelectedSize(size)}
+                >
+                  {size}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <p style={{ color: 'var(--text-secondary)', fontSize: '15px', lineHeight: '1.6', marginBottom: '40px' }}>{product.description}</p>
+          {/* Actions */}
+          <div className="pdp-action-row">
+            <button className="btn-ss-primary" onClick={handleAddToCart}>
+              {isAdded ? 'ADDED TO BAG' : 'ADD TO BAG'}
+            </button>
+            <button 
+              className="btn-ss-secondary" 
+              onClick={() => toggleWishlist(product)}
+              style={{ borderColor: isWishlisted ? '#e11b23' : '#eee', color: isWishlisted ? '#e11b23' : '#111' }}
+            >
+              <Heart size={18} fill={isWishlisted ? '#e11b23' : 'none'} />
+              {isWishlisted ? 'WISHLISTED' : 'ADD TO WISHLIST'}
+            </button>
+          </div>
 
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '13px', fontWeight: '900', marginBottom: '10px' }}>SIZE</div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {['S', 'M', 'L', 'XL'].map(size => (
-                  <button key={size} onClick={() => setSelectedSize(size)} style={{ width: '50px', height: '50px', borderRadius: '8px', border: '2px solid', borderColor: selectedSize === size ? '#111' : '#eee', background: selectedSize === size ? '#111' : 'white', color: selectedSize === size ? 'white' : '#111', fontWeight: '900', cursor: 'pointer' }}>{size}</button>
-                ))}
+          {/* Accordions */}
+          <div style={{ marginTop: '10px' }}>
+            <AccordionItem title="Product Details" defaultOpen={true}>
+              <p style={{ marginBottom: '15px' }}>{product.description}</p>
+              <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <li><strong>Material:</strong> 100% Premium Cotton</li>
+                <li><strong>Fit:</strong> Relaxed Comfort Fit</li>
+                <li><strong>Wash Care:</strong> Machine wash. Wash in cold water, use mild detergent, dry in shade.</li>
+                <li><strong>Note:</strong> Colors may slightly vary depending on your screen brightness.</li>
+              </ul>
+            </AccordionItem>
+            
+            <AccordionItem title="Delivery & Returns">
+              <ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <li>Pay on delivery is available</li>
+                <li>Easy 15 days return and exchange. Return Policies may vary based on products and promotions.</li>
+                <li>Estimated delivery time: 3-5 working days.</li>
+              </ul>
+            </AccordionItem>
+
+            <AccordionItem title={`Customer Reviews (${product.reviews?.length || 0})`}>
+              <div style={{ marginBottom: '30px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '15px' }}>Write a Review</h4>
+                <form onSubmit={handleReviewSubmit}>
+                  <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <Star key={star} size={20} fill={star <= reviewForm.rating ? '#ffc107' : 'none'} color={star <= reviewForm.rating ? '#ffc107' : '#ccc'} style={{ cursor: 'pointer' }} onClick={() => setReviewForm({ ...reviewForm, rating: star })} />
+                    ))}
+                  </div>
+                  <textarea 
+                    value={reviewForm.comment} 
+                    onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} 
+                    style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #ddd', height: '80px', marginBottom: '10px', fontFamily: 'inherit' }} 
+                    required 
+                    placeholder="Tell us what you think..." 
+                  />
+                  <button type="submit" disabled={isSubmittingReview} className="btn-ss-secondary" style={{ width: 'auto', padding: '10px 20px', fontSize: '12px' }}>
+                    {isSubmittingReview ? 'SUBMITTING...' : 'SUBMIT REVIEW'}
+                  </button>
+                </form>
               </div>
-            </div>
-          </div>
 
-          <button onClick={handleAddToCart} style={{ width: '100%', padding: '20px', background: isAdded ? '#008080' : '#e11b23', color: 'white', fontWeight: '900', borderRadius: '8px', border: 'none', cursor: 'pointer', marginBottom: '20px' }}>
-            {isAdded ? 'ADDED TO BAG' : 'ADD TO BAG'}
-          </button>
+              {product.reviews?.length === 0 ? (
+                <p style={{ color: '#666', fontStyle: 'italic' }}>No reviews yet. Be the first!</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {product.reviews?.map(r => (
+                    <div key={r.id} style={{ borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontWeight: '800', fontSize: '14px', color: '#111' }}>{r.username}</span>
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          {[...Array(5)].map((_, i) => <Star key={i} size={12} fill={i < r.rating ? '#ffc107' : 'none'} color={i < r.rating ? '#ffc107' : '#ccc'} />)}
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '13px', color: '#444', lineHeight: '1.5' }}>{r.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </AccordionItem>
+          </div>
         </div>
       </div>
 
-      {/* REVIEWS SECTION */}
-      <section style={{ marginTop: '80px', borderTop: '1px solid #eee', paddingTop: '60px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: '950', marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <MessageSquare size={24} color="#e11b23" /> CUSTOMER REVIEWS
-        </h2>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '80px' }} className="reviews-grid">
-          {/* Review Form */}
-          <div style={{ background: '#f9f9f9', padding: '30px', borderRadius: '15px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '20px' }}>Write a Review</h3>
-            <form onSubmit={handleReviewSubmit}>
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', marginBottom: '5px' }}>RATING</label>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <Star key={star} size={20} fill={star <= reviewForm.rating ? '#ffc107' : 'none'} color={star <= reviewForm.rating ? '#ffc107' : '#ccc'} style={{ cursor: 'pointer' }} onClick={() => setReviewForm({ ...reviewForm, rating: star })} />
-                  ))}
-                </div>
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', marginBottom: '5px' }}>YOUR COMMENT</label>
-                <textarea value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', height: '100px' }} required placeholder="What do you think about this product?" />
-              </div>
-              <button type="submit" disabled={isSubmittingReview} style={{ width: '100%', padding: '15px', background: '#111', color: 'white', borderRadius: '8px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>
-                {isSubmittingReview ? 'SUBMITTING...' : 'POST REVIEW'}
-              </button>
-            </form>
-          </div>
-
-          {/* Review List */}
-          <div>
-            {product.reviews?.length === 0 ? (
-              <p style={{ color: '#666', fontStyle: 'italic' }}>No reviews yet. Be the first to review!</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                {product.reviews?.map(r => (
-                  <div key={r.id} style={{ borderBottom: '1px solid #eee', pb: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ fontWeight: '900', fontSize: '15px' }}>{r.username}</span>
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        {[...Array(5)].map((_, i) => <Star key={i} size={12} fill={i < r.rating ? '#ffc107' : 'none'} color={i < r.rating ? '#ffc107' : '#ccc'} />)}
-                      </div>
-                    </div>
-                    <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5' }}>{r.comment}</p>
-                    <p style={{ fontSize: '11px', color: '#999', marginTop: '10px' }}>{new Date(r.created_at).toLocaleDateString()}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* RELATED PRODUCTS */}
-      <section style={{ marginTop: '80px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: '950', marginBottom: '30px' }}>YOU MAY ALSO LIKE</h2>
-        <div className="product-grid">
-          {relatedProducts.map(p => (
-            <ProductCard key={p.id} product={p} onAddToCart={addToCart} onWishlistToggle={toggleWishlist} isWishlisted={isInWishlist(p.id)} />
-          ))}
-        </div>
-      </section>
+      {relatedProducts.length > 0 && (
+        <section style={{ marginTop: '80px', borderTop: '1px solid #eee', paddingTop: '60px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '950', marginBottom: '30px', textAlign: 'center' }}>YOU MAY ALSO LIKE</h2>
+          <div className="product-grid">
+            {relatedProducts.map(p => (
+              <ProductCard key={p.id} product={p} onAddToCart={addToCart} onWishlistToggle={toggleWishlist} isWishlisted={isInWishlist(p.id)} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

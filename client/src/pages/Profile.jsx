@@ -67,10 +67,15 @@ const Profile = () => {
         <div className="profile-sidebar" style={{ background: 'var(--ss-light-grey)', padding: '30px', borderRadius: '12px', height: 'fit-content' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <div style={{ width: '80px', height: '80px', background: '#008080', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: '900', margin: '0 auto 15px' }}>
-              {(user.username || 'A').charAt(0).toUpperCase()}
+              {(user?.username || 'A').charAt(0).toUpperCase()}
             </div>
-            <h2 style={{ fontSize: '20px', fontWeight: '950', color: 'var(--text-primary)' }}>{(user.username || 'Customer').toUpperCase()}</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{user.email}</p>
+            <h2 style={{ fontSize: '20px', fontWeight: '950', color: 'var(--text-primary)' }}>{(user?.username || 'Customer').toUpperCase()}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{user?.email || ''}</p>
+            
+            <div style={{ background: '#212121', color: '#fff', margin: '20px 0 10px', padding: '15px', borderRadius: '8px', border: '1px solid #333', textAlign: 'left' }}>
+              <div style={{ fontSize: '11px', color: '#aaa', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px' }}>AURA POINTS</div>
+              <div style={{ fontSize: '24px', fontWeight: '900', color: '#ff4444' }}>{user?.points || 0}</div>
+            </div>
           </div>
           
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -94,7 +99,7 @@ const Profile = () => {
                 <SettingsIcon size={18} /> SETTINGS
               </div>
             </Link>
-            <div onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '800', color: '#e11b23', marginTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+            <div onClick={() => { logout(); navigate('/'); }} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '800', color: '#e11b23', marginTop: '20px', borderTop: '1px solid var(--border-color)' }}>
               <LogOut size={18} /> LOGOUT
             </div>
           </nav>

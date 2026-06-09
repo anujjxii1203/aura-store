@@ -221,6 +221,7 @@ async function createUsersTable() {
       password TEXT,
       google_id TEXT UNIQUE,
       role TEXT DEFAULT 'user',
+      points INTEGER DEFAULT 500,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -228,6 +229,9 @@ async function createUsersTable() {
   try {
     if (dbType === 'postgres') {
       await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'");
+      await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 500");
+    } else {
+      await run("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 500");
     }
   } catch (err) {}
 

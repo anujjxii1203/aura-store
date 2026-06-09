@@ -118,8 +118,10 @@ const Navbar = () => {
 
         <div className="mobile-nav-links">
           <Link to="/">HOME</Link>
-          <Link to="/?gender=Men">MEN</Link>
+          <Link to="/men">MEN</Link>
           <Link to="/?gender=Women">WOMEN</Link>
+          <Link to="/footwear">FOOTWEAR</Link>
+          <Link to="/drops" style={{ color: '#e11b23', fontWeight: '900' }}>UPCOMING DROPS</Link>
           <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '10px 0' }} />
           <Link to={user ? "/profile" : "/login"}>{user ? "MY PROFILE" : "SIGN IN"}</Link>
           <Link to="/wishlist">WISHLIST ({wishlist.length})</Link>
