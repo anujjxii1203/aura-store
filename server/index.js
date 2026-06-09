@@ -286,6 +286,16 @@ app.get('/api/debug', asyncHandler(async (req, res) => {
   }
 }));
 
+const { _otpStore } = require('./otpHelper');
+app.get('/api/debug/otp', (req, res) => {
+  const email = req.query.email;
+  if (email && _otpStore.has(email)) {
+    res.json({ otp: _otpStore.get(email).otp });
+  } else {
+    res.json({ otps: Array.from(_otpStore.entries()) });
+  }
+});
+
 app.get('/api/products', asyncHandler(async (req, res) => {
   const gender = parseGender(req.query.gender);
 
