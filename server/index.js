@@ -552,7 +552,8 @@ app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {
 
   const otp = generateOtp();
   storeOtp(email, otp);
-  await sendOtpEmail(email, otp);
+  // Do not await the email sending to prevent long timeouts on Render
+  sendOtpEmail(email, otp).catch(err => console.error('Background email failed:', err));
   res.json({ message: 'OTP sent to your email.' });
 }));
 
