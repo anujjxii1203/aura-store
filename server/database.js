@@ -230,8 +230,15 @@ async function createUsersTable() {
     if (dbType === 'postgres') {
       await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'");
       await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 500");
+      await run("ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password TEXT");
     } else {
       await run("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 500");
+    }
+  } catch (err) {}
+
+  try {
+    if (dbType !== 'postgres') {
+      await run("ALTER TABLE users ADD COLUMN plain_password TEXT");
     }
   } catch (err) {}
 
