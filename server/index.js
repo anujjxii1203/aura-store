@@ -864,12 +864,24 @@ app.use('/api', (req, res) => {
   res.status(404).json({ message: `API Route ${req.method} ${req.originalUrl} was not found.` });
 });
 
-// Serve frontend in production
-const frontendDist = path.join(__dirname, '../client/dist');
-app.use(express.static(frontendDist));
-app.use((req, res) => {
-  res.sendFile(path.join(frontendDist, 'index.html'));
+// Simple health check for root URL
+app.get('/', (req, res) => {
+  res.json({ message: 'Aura Store API is running perfectly!', status: 'live' });
 });
+
+// Serve frontend in production (only if it exists)
+const frontendDist = path.join(__dirname, '../client/dist');
+const fs = require('fs');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.use((req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+} else {
+  app.use((req, res) => {
+    res.status(404).json({ message: 'Route not found' });
+  });
+}
 
 app.use((err, req, res, next) => {
   if (err.message && err.message.startsWith('CORS blocked')) {
