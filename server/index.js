@@ -591,6 +591,55 @@ app.post('/api/auth/verify-otp', asyncHandler(async (req, res) => {
   const token = signToken(user);
   res.json({ message: 'Login successful.', token, user: publicUser(user) });
 }));
+
+// Forgot Password - Request OTP
+app.post('/api/auth/forgot-password', asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+
+  if (!email || !email.includes('@')) {
+    res.status(400).json({ message: 'Please enter a valid email address.' });
+    return;
+  }
+
+  const user = await get('SELECT id, email FROM users WHERE email = ?', [email]);
+  if (!user) {
+    res.status(404).json({ message: 'No account found for this email.' });
+    return;
+  }
+
+  const otp = generateOtp();
+  storeOtp(email, otp);
+  sendOtpEmail(email, otp).catch(err => console.error('Background email failed:', err));
+  
+  res.json({ message: 'Password reset OTP sent to your email.' });
+}));
+
+// Forgot Password - Reset with OTP
+app.post('/api/auth/reset-password', asyncHandler(async (req, res) => {
+  const { email: rawEmail, otp, newPassword } = req.body;
+  const email = normalizeEmail(rawEmail);
+
+  if (!email || !otp || !newPassword) {
+    res.status(400).json({ message: 'Email, OTP, and new password are required.' });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+    return;
+  }
+
+  if (!verifyOtp(email, otp)) {
+    res.status(401).json({ message: 'Invalid or expired OTP.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await run('UPDATE users SET password = ? WHERE email = ?', [passwordHash, email]);
+
+  res.json({ message: 'Password has been reset successfully. You can now log in.' });
+}));
+
 app.get('/api/me', requireAuth, asyncHandler(async (req, res) => {
   const user = await get('SELECT id, username, email, points FROM users WHERE id = ?', [req.auth.id]);
 
