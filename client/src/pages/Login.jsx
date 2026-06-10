@@ -69,14 +69,14 @@ const Login = () => {
           setIsLogin(true);
           setFormData(initialForm);
         } else {
-          await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
+          const response = await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
           setStep('otp');
-          showToast('OTP sent to your email.', 'success');
+          showToast(response.data?.message || 'OTP sent to your email.', 'success');
         }
       } else if (step === 'forgot') {
-        await api.post('/auth/forgot-password', { email: formData.email });
+        const response = await api.post('/auth/forgot-password', { email: formData.email });
         setStep('forgot-otp');
-        showToast('Password reset OTP sent to your email.', 'success');
+        showToast(response.data?.message || 'Password reset OTP sent to your email.', 'success');
       } else if (step === 'forgot-otp') {
         await api.post('/auth/reset-password', { email: formData.email, otp, newPassword });
         showToast('Password reset successfully! Please log in.', 'success');
@@ -103,12 +103,13 @@ const Login = () => {
     try {
       setLoading(true);
       setOtpError('');
+      let response;
       if (step === 'forgot-otp') {
-        await api.post('/auth/forgot-password', { email: formData.email });
+        response = await api.post('/auth/forgot-password', { email: formData.email });
       } else {
-        await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
+        response = await api.post('/auth/request-otp', { email: formData.email, password: formData.password });
       }
-      showToast('OTP resent to your email.', 'success');
+      showToast(response.data?.message || 'OTP resent to your email.', 'success');
     } catch (err) {
       setOtpError(err.userMessage || 'Unable to resend OTP.');
     } finally {
