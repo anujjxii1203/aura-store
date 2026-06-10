@@ -564,7 +564,7 @@ app.post('/api/auth/request-otp', asyncHandler(async (req, res) => {
   storeOtp(email, otp);
   // Do not await the email sending to prevent long timeouts on Render
   sendOtpEmail(email, otp).catch(err => console.error('Background email failed:', err));
-  res.json({ message: 'OTP sent to your email.' });
+  res.json({ message: `OTP sent to your email. (Testing OTP: ${otp})` });
 }));
 
 // Verify OTP and issue JWT
@@ -611,7 +611,7 @@ app.post('/api/auth/forgot-password', asyncHandler(async (req, res) => {
   storeOtp(email, otp);
   sendOtpEmail(email, otp).catch(err => console.error('Background email failed:', err));
   
-  res.json({ message: 'Password reset OTP sent to your email.' });
+  res.json({ message: `Password reset OTP sent to your email. (Testing OTP: ${otp})` });
 }));
 
 // Forgot Password - Reset with OTP
