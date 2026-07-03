@@ -153,6 +153,31 @@ const Checkout = () => {
       const orderResponse = await api.post('/payments/razorpay-order', { amount: finalTotal });
       const orderData = orderResponse.data;
 
+      if (orderData.id.startsWith('order_mock_')) {
+        try {
+          const verifyPayload = {
+            method: paymentMethod,
+            amount: finalTotal,
+            razorpay_order_id: orderData.id,
+            razorpay_payment_id: `pay_mock_${Date.now()}`,
+            razorpay_signature: 'mock_signature',
+            metadata: { items: cart }
+          };
+          const verifyResponse = await api.post('/payments', verifyPayload);
+          saveOrder(verifyResponse.data.payment);
+          setIsOrdered(true);
+          triggerConfetti();
+          setTimeout(() => {
+            clearCart();
+            navigate('/profile');
+          }, 3000);
+        } catch (err) {
+          setPaymentError(err?.response?.data?.message || err.userMessage || 'Payment verification failed.');
+          setIsPaying(false);
+        }
+        return;
+      }
+
       // 2. Open Razorpay Checkout Modal
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_RJJYQC25Xs2ySM',
